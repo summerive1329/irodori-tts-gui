@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a local React + FastAPI GUI that uses `Irodori-TTS` as a Git submodule, generates `line x reference` cells without reloading the model for every line, supports cell-only regenerate, and exports selected line results as a merged WAV.
+**Goal:** Build a local React + FastAPI GUI that uses `Irodori-TTS` as a Git submodule, imports line text from drag-and-drop files by appending to the existing script, generates `line x reference` cells without reloading the model for every line, supports cell-only regenerate, and exports selected line results as a merged WAV.
 
 **Architecture:** The repo will contain a `vendor/Irodori-TTS` submodule, a `backend/` FastAPI app, and a `frontend/` React app. The backend owns project persistence, runtime/reference-latent reuse, and export logic; the frontend renders the matrix editor and drives the API.
 
@@ -28,11 +28,13 @@
 - Create: `backend/app/services/project_store.py`
 - Create: `backend/app/services/runtime_manager.py`
 - Create: `backend/app/services/generation_service.py`
+- Create: `backend/app/services/line_import_service.py`
 - Create: `backend/app/services/export_service.py`
 - Create: `backend/app/api/projects.py`
 - Create: `backend/tests/test_project_store.py`
 - Create: `backend/tests/test_runtime_manager.py`
 - Create: `backend/tests/test_generation_service.py`
+- Create: `backend/tests/test_line_import_service.py`
 - Create: `backend/tests/test_export_service.py`
 - Create: `backend/tests/test_projects_api.py`
 
@@ -48,6 +50,7 @@
 - Create: `frontend/src/types.ts`
 - Create: `frontend/src/features/projects/ProjectHome.tsx`
 - Create: `frontend/src/features/editor/ProjectEditor.tsx`
+- Create: `frontend/src/features/editor/LineDropzone.tsx`
 - Create: `frontend/src/features/editor/ReferenceSidebar.tsx`
 - Create: `frontend/src/features/editor/LineMatrix.tsx`
 - Create: `frontend/src/features/editor/CellDetailPane.tsx`
@@ -55,6 +58,7 @@
 - Create: `frontend/src/styles.css`
 - Create: `frontend/src/features/editor/ProjectEditor.test.tsx`
 - Create: `frontend/src/features/editor/LineMatrix.test.tsx`
+- Create: `frontend/src/features/editor/LineDropzone.test.tsx`
 
 ### Vendor
 
@@ -439,7 +443,102 @@ git add backend/app/models/project.py backend/app/services/project_store.py back
 git commit -m "feat: add project persistence model"
 ```
 
-### Task 3: Add Runtime Reuse And Cell Generation Services
+### Task 3: Add Line Import Service For Drag-And-Drop Files
+
+**Files:**
+- Create: `backend/app/services/line_import_service.py`
+- Create: `backend/tests/test_line_import_service.py`
+
+- [ ] **Step 1: Write the failing line import append test**
+
+Create `backend/tests/test_line_import_service.py`:
+
+```python
+from app.models.project import LineItem, Project
+from app.services.line_import_service import LineImportService
+
+
+def test_import_appends_lines_without_removing_existing_ones() -> None:
+    project = Project.new(name="demo")
+    project.lines = [LineItem(id="line-1", text="existing", order_index=0)]
+    service = LineImportService()
+
+    updated = service.import_text(project, "new one\nnew two\n")
+
+    assert [line.text for line in updated.lines] == ["existing", "new one", "new two"]
+    assert [line.order_index for line in updated.lines] == [0, 1, 2]
+```
+
+- [ ] **Step 2: Add the blank-line skip test**
+
+Append to `backend/tests/test_line_import_service.py`:
+
+```python
+def test_import_skips_blank_lines() -> None:
+    project = Project.new(name="demo")
+    service = LineImportService()
+
+    updated = service.import_text(project, "one\n\n two \n")
+
+    assert [line.text for line in updated.lines] == ["one", "two"]
+```
+
+- [ ] **Step 3: Run the line import tests and confirm they fail**
+
+Run:
+
+```bash
+cd backend
+.venv\Scripts\python -m pytest tests/test_line_import_service.py -v
+```
+
+Expected: FAIL with missing `LineImportService`
+
+- [ ] **Step 4: Implement append-only line import**
+
+Create `backend/app/services/line_import_service.py`:
+
+```python
+from __future__ import annotations
+
+from copy import deepcopy
+from uuid import uuid4
+
+from app.models.project import LineItem, Project
+
+
+class LineImportService:
+    def import_text(self, project: Project, raw_text: str) -> Project:
+        updated = deepcopy(project)
+        next_index = max((line.order_index for line in updated.lines), default=-1) + 1
+        for raw_line in raw_text.splitlines():
+            text = raw_line.strip()
+            if not text:
+                continue
+            updated.lines.append(LineItem(id=f"line-{uuid4()}", text=text, order_index=next_index))
+            next_index += 1
+        return updated
+```
+
+- [ ] **Step 5: Re-run the line import tests**
+
+Run:
+
+```bash
+cd backend
+.venv\Scripts\python -m pytest tests/test_line_import_service.py -v
+```
+
+Expected: PASS
+
+- [ ] **Step 6: Commit the line import service**
+
+```bash
+git add backend/app/services/line_import_service.py backend/tests/test_line_import_service.py
+git commit -m "feat: add append-only line import service"
+```
+
+### Task 4: Add Runtime Reuse And Cell Generation Services
 
 **Files:**
 - Create: `backend/app/services/runtime_manager.py`
@@ -652,7 +751,7 @@ git add backend/app/services/runtime_manager.py backend/app/services/generation_
 git commit -m "feat: add runtime cache and generation service"
 ```
 
-### Task 4: Add Export Logic And FastAPI Endpoints
+### Task 5: Add Export Logic And FastAPI Endpoints
 
 **Files:**
 - Create: `backend/app/schemas/api.py`
@@ -704,7 +803,30 @@ def test_list_projects_returns_200() -> None:
     assert response.json() == []
 ```
 
-- [ ] **Step 3: Run the export and API tests to confirm they fail**
+- [ ] **Step 3: Add the failing line import API test**
+
+Append to `backend/tests/test_projects_api.py`:
+
+```python
+def test_import_lines_appends_to_existing_lines() -> None:
+    client = TestClient(app)
+    created = client.post("/api/projects", json={"name": "demo"}).json()
+    project_id = created["id"]
+
+    first = client.post(
+        f"/api/projects/{project_id}/lines/import",
+        files={"file": ("lines.txt", "first\nsecond\n", "text/plain")},
+    )
+    second = client.post(
+        f"/api/projects/{project_id}/lines/import",
+        files={"file": ("more.txt", "third\n", "text/plain")},
+    )
+
+    assert first.status_code == 200
+    assert [line["text"] for line in second.json()["lines"]] == ["first", "second", "third"]
+```
+
+- [ ] **Step 4: Run the export and API tests to confirm they fail**
 
 Run:
 
@@ -715,7 +837,7 @@ cd backend
 
 Expected: FAIL with missing app/export modules
 
-- [ ] **Step 4: Implement export validation**
+- [ ] **Step 5: Implement export validation**
 
 Create `backend/app/services/export_service.py`:
 
@@ -742,7 +864,7 @@ class ExportService:
         return output_path
 ```
 
-- [ ] **Step 5: Implement API schemas and app wiring**
+- [ ] **Step 6: Implement API schemas and app wiring**
 
 Create `backend/app/config.py`:
 
@@ -787,7 +909,38 @@ app = FastAPI(title="Irodori TTS GUI")
 app.include_router(projects_router)
 ```
 
-- [ ] **Step 6: Re-run the export and API tests**
+- [ ] **Step 7: Add line import request handling**
+
+Update `backend/app/api/projects.py`:
+
+```python
+from fastapi import APIRouter, HTTPException, UploadFile
+
+from app.services.line_import_service import LineImportService
+
+LINE_IMPORT_SERVICE = LineImportService()
+
+
+def _decode_text_file(raw_bytes: bytes) -> str:
+    for encoding in ("utf-8", "utf-8-sig", "cp932"):
+        try:
+            return raw_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise HTTPException(status_code=400, detail="Unsupported text file encoding")
+
+
+@router.post("/{project_id}/lines/import")
+async def import_lines(project_id: str, file: UploadFile) -> Project:
+    project = PROJECTS.get(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    raw_bytes = await file.read()
+    PROJECTS[project_id] = LINE_IMPORT_SERVICE.import_text(project, _decode_text_file(raw_bytes))
+    return PROJECTS[project_id]
+```
+
+- [ ] **Step 8: Re-run the export and API tests**
 
 Run:
 
@@ -798,7 +951,7 @@ cd backend
 
 Expected: PASS
 
-- [ ] **Step 7: Add create/load/regenerate/export endpoints**
+- [ ] **Step 9: Add create/load/regenerate/export endpoints**
 
 Update `backend/app/api/projects.py`:
 
@@ -831,14 +984,14 @@ def get_project(project_id: str) -> Project:
     return project
 ```
 
-- [ ] **Step 8: Commit the API layer**
+- [ ] **Step 10: Commit the API layer**
 
 ```bash
 git add backend/app/config.py backend/app/main.py backend/app/schemas/api.py backend/app/services/export_service.py backend/app/api/projects.py backend/tests/test_export_service.py backend/tests/test_projects_api.py
 git commit -m "feat: add backend API and export validation"
 ```
 
-### Task 5: Build The React Project Editor
+### Task 6: Build The React Project Editor
 
 **Files:**
 - Create: `frontend/src/main.tsx`
@@ -847,6 +1000,7 @@ git commit -m "feat: add backend API and export validation"
 - Create: `frontend/src/types.ts`
 - Create: `frontend/src/features/projects/ProjectHome.tsx`
 - Create: `frontend/src/features/editor/ProjectEditor.tsx`
+- Create: `frontend/src/features/editor/LineDropzone.tsx`
 - Create: `frontend/src/features/editor/ReferenceSidebar.tsx`
 - Create: `frontend/src/features/editor/LineMatrix.tsx`
 - Create: `frontend/src/features/editor/CellDetailPane.tsx`
@@ -854,6 +1008,7 @@ git commit -m "feat: add backend API and export validation"
 - Create: `frontend/src/styles.css`
 - Create: `frontend/src/features/editor/ProjectEditor.test.tsx`
 - Create: `frontend/src/features/editor/LineMatrix.test.tsx`
+- Create: `frontend/src/features/editor/LineDropzone.test.tsx`
 
 - [ ] **Step 1: Write the failing matrix interaction test**
 
@@ -983,10 +1138,47 @@ Expected: PASS for `LineMatrix.test.tsx`
 
 - [ ] **Step 6: Build the editor shell and detail pane**
 
+- [ ] **Step 6: Add the failing dropzone test**
+
+Create `frontend/src/features/editor/LineDropzone.test.tsx`:
+
+```tsx
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { LineDropzone } from "./LineDropzone";
+
+test("dropzone forwards dropped files", async () => {
+  const user = userEvent.setup();
+  const calls: string[] = [];
+  const file = new File(["one\ntwo\n"], "lines.txt", { type: "text/plain" });
+
+  render(<LineDropzone onFilesSelected={(files) => calls.push(files[0].name)} />);
+
+  await user.upload(screen.getByLabelText(/import lines/i), file);
+
+  expect(calls).toEqual(["lines.txt"]);
+});
+```
+
+- [ ] **Step 7: Run the editor tests and confirm the dropzone test fails**
+
+Run:
+
+```bash
+cd frontend
+npm test -- --runInBand
+```
+
+Expected: FAIL with missing `LineDropzone`
+
+- [ ] **Step 8: Build the editor shell, dropzone, and detail pane**
+
 Create `frontend/src/features/editor/ProjectEditor.tsx`:
 
 ```tsx
 import { LineMatrix } from "./LineMatrix";
+import { LineDropzone } from "./LineDropzone";
 import { CellDetailPane } from "./CellDetailPane";
 import { ReferenceSidebar } from "./ReferenceSidebar";
 import type { CellItem, LineItem, ReferenceItem } from "../../types";
@@ -1005,9 +1197,33 @@ export function ProjectEditor(props: Props) {
   return (
     <div className="editor-layout">
       <ReferenceSidebar references={props.references} />
-      <LineMatrix {...props} />
+      <div>
+        <LineDropzone onFilesSelected={() => {}} />
+        <LineMatrix {...props} />
+      </div>
       <CellDetailPane cellId={props.selectedCellId} onRegenerate={props.onRegenerate} />
     </div>
+  );
+}
+```
+
+Create `frontend/src/features/editor/LineDropzone.tsx`:
+
+```tsx
+type Props = {
+  onFilesSelected: (files: File[]) => void;
+};
+
+export function LineDropzone({ onFilesSelected }: Props) {
+  return (
+    <label>
+      Import Lines
+      <input
+        type="file"
+        accept=".txt,.md,.csv,.tsv,text/plain,text/markdown,text/csv"
+        onChange={(event) => onFilesSelected(Array.from(event.target.files ?? []))}
+      />
+    </label>
   );
 }
 ```
@@ -1040,7 +1256,7 @@ export function CellDetailPane({ cellId, onRegenerate }: { cellId: string | null
 }
 ```
 
-- [ ] **Step 7: Add the root app and styles**
+- [ ] **Step 9: Add the root app and styles**
 
 Create `frontend/src/main.tsx`:
 
@@ -1102,14 +1318,25 @@ body {
 }
 ```
 
-- [ ] **Step 8: Commit the frontend editor shell**
+- [ ] **Step 10: Re-run the frontend tests**
+
+Run:
+
+```bash
+cd frontend
+npm test -- --runInBand
+```
+
+Expected: PASS for `LineMatrix.test.tsx` and `LineDropzone.test.tsx`
+
+- [ ] **Step 11: Commit the frontend editor shell**
 
 ```bash
 git add frontend
 git commit -m "feat: add React matrix editor shell"
 ```
 
-### Task 6: Wire Real Backend Behavior And End-To-End Checks
+### Task 7: Wire Real Backend Behavior And End-To-End Checks
 
 **Files:**
 - Modify: `backend/app/services/generation_service.py`
@@ -1119,6 +1346,7 @@ git commit -m "feat: add React matrix editor shell"
 - Modify: `frontend/src/App.tsx`
 - Modify: `frontend/src/features/editor/useProjectState.ts`
 - Modify: `frontend/src/features/editor/ProjectEditor.tsx`
+- Modify: `frontend/src/features/editor/LineDropzone.tsx`
 
 - [ ] **Step 1: Add a failing API test for cell regenerate**
 
@@ -1198,6 +1426,16 @@ export async function createProject(name: string): Promise<{ id: string; name: s
   });
   return response.json();
 }
+
+export async function importLines(projectId: string, file: File): Promise<unknown> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_BASE}/projects/${projectId}/lines/import`, {
+    method: "POST",
+    body,
+  });
+  return response.json();
+}
 ```
 
 Update `frontend/src/App.tsx`:
@@ -1217,6 +1455,34 @@ export function App() {
       onRegenerate={(cellId) => console.log("regen", cellId)}
       onToggleExport={() => {}}
     />
+  );
+}
+```
+
+Update `frontend/src/features/editor/ProjectEditor.tsx`:
+
+```tsx
+type Props = {
+  lines: LineItem[];
+  references: ReferenceItem[];
+  cells: CellItem[];
+  selectedCellId: string | null;
+  onSelectCell: (cellId: string) => void;
+  onRegenerate: (cellId: string) => void;
+  onToggleExport: (cellId: string) => void;
+  onImportFiles?: (files: File[]) => void;
+};
+
+export function ProjectEditor(props: Props) {
+  return (
+    <div className="editor-layout">
+      <ReferenceSidebar references={props.references} />
+      <div>
+        <LineDropzone onFilesSelected={(files) => props.onImportFiles?.(files)} />
+        <LineMatrix {...props} />
+      </div>
+      <CellDetailPane cellId={props.selectedCellId} onRegenerate={props.onRegenerate} />
+    </div>
   );
 }
 ```
@@ -1256,6 +1522,7 @@ Manual check:
 - create a project
 - add two references
 - add three lines
+- drag and drop a text file and confirm new lines append after the existing ones
 - generate all cells
 - regenerate one cell only
 - mark one selected cell per line
@@ -1273,10 +1540,11 @@ git commit -m "feat: deliver Irodori GUI MVP"
 - Spec coverage:
   - submodule integration is covered in Task 1
   - local project save/load is covered in Task 2
-  - runtime and latent reuse service scaffolding is covered in Task 3
-  - export and API surface are covered in Task 4
-  - React matrix editor is covered in Task 5
-  - end-to-end regenerate/export flow is covered in Task 6
+  - append-only line import is covered in Task 3
+  - runtime and latent reuse service scaffolding is covered in Task 4
+  - export and API surface are covered in Task 5
+  - React matrix editor plus dropzone is covered in Task 6
+  - end-to-end regenerate/export flow is covered in Task 7
 - Placeholder scan:
   - no unresolved placeholder markers remain
   - every task names exact files and exact commands
