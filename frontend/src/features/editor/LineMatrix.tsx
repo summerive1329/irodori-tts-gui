@@ -10,6 +10,7 @@ type Props = {
   onRegenerate: (cellId: string) => void;
   onSelectForExport: (cellId: string) => void;
   onEditLine: (lineId: string, text: string) => void;
+  onDeleteLine?: (lineId: string) => void;
   onReorder: (lineIds: string[]) => void;
 };
 
@@ -30,6 +31,7 @@ export function LineMatrix({
   onRegenerate,
   onSelectForExport,
   onEditLine,
+  onDeleteLine,
   onReorder,
 }: Props) {
   const orderedLines = [...lines].sort((a, b) => a.order_index - b.order_index);
@@ -84,6 +86,7 @@ export function LineMatrix({
               <div className="line-order-controls">
                 <button type="button" aria-label={`Move ${line.text} up`} disabled={lineIndex === 0} onClick={() => move(line.id, -1)}>↑</button>
                 <button type="button" aria-label={`Move ${line.text} down`} disabled={lineIndex === orderedLines.length - 1} onClick={() => move(line.id, 1)}>↓</button>
+                {onDeleteLine && <button type="button" aria-label={`Delete ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
               </div>
             </div>
 
