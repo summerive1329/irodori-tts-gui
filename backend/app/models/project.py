@@ -132,6 +132,46 @@ class Project(BaseModel):
                 return cell
         raise KeyError(f"Cell not found: {cell_id}")
 
+    def update_line(self, line_id: str, text: str) -> LineItem:
+        clean_text = text.strip()
+        if not clean_text:
+            raise ValueError("Line text is required")
+        line = next((item for item in self.lines if item.id == line_id), None)
+        if line is None:
+            raise KeyError(f"Line not found: {line_id}")
+        if line.text != clean_text:
+            line.text = clean_text
+            for cell in self.cells:
+                if cell.line_id == line_id:
+                    cell.status = "idle"
+                    cell.error_message = None
+                    cell.current_result = None
+                    cell.selected_for_export = False
+            self.touch()
+        return line
+
+    def remove_line(self, line_id: str) -> None:
+        if not any(line.id == line_id for line in self.lines):
+            raise KeyError(f"Line not found: {line_id}")
+        self.lines = [line for line in self.lines if line.id != line_id]
+        self.cells = [cell for cell in self.cells if cell.line_id != line_id]
+        self.export_order = [item for item in self.export_order if item != line_id]
+        for index, line in enumerate(self.ordered_lines()):
+            line.order_index = index
+        self.touch()
+
+    def remove_reference(self, reference_id: str) -> ReferenceItem:
+        reference = next(
+            (item for item in self.references if item.id == reference_id),
+            None,
+        )
+        if reference is None:
+            raise KeyError(f"Reference not found: {reference_id}")
+        self.references = [item for item in self.references if item.id != reference_id]
+        self.cells = [cell for cell in self.cells if cell.reference_id != reference_id]
+        self.touch()
+        return reference
+
     def select_export_cell(self, cell_id: str) -> None:
         target = self.get_cell(cell_id)
         for cell in self.cells:
