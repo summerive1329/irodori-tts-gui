@@ -140,3 +140,32 @@ def test_edit_and_reorder_lines(tmp_path: Path) -> None:
     assert [line["text"] for line in reordered.json()["lines"]] == ["changed", "two"]
     ordered = sorted(reordered.json()["lines"], key=lambda line: line["order_index"])
     assert [line["text"] for line in ordered] == ["two", "changed"]
+
+
+def test_delete_line_reference_and_project(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    project = client.post(
+        f"/api/projects/{project_id}/lines",
+        json={"texts": ["one", "two"]},
+    ).json()
+    project = client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    ).json()
+    line_id = project["lines"][0]["id"]
+    reference_id = project["references"][0]["id"]
+    reference_path = tmp_path / "projects" / project_id / project["references"][0]["copied_path"]
+
+    after_line = client.delete(f"/api/projects/{project_id}/lines/{line_id}")
+    after_reference = client.delete(f"/api/projects/{project_id}/references/{reference_id}")
+    deleted = client.delete(f"/api/projects/{project_id}")
+
+    assert after_line.status_code == 200
+    assert len(after_line.json()["lines"]) == 1
+    assert after_reference.status_code == 200
+    assert after_reference.json()["references"] == []
+    assert reference_path.exists() is False
+    assert deleted.status_code == 204
+    assert client.get(f"/api/projects/{project_id}").status_code == 404

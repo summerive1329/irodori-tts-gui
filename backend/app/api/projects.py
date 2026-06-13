@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
@@ -41,6 +42,12 @@ def create_projects_router(
     def save_project(project: Project) -> Project:
         store.save(project)
         return project
+
+    def remove_cell_audio(project: Project, cell_ids: set[str]) -> None:
+        project_dir = store.project_dir(project.id)
+        for cell in project.cells:
+            if cell.id in cell_ids and cell.current_result is not None:
+                (project_dir / cell.current_result.audio_path).unlink(missing_ok=True)
 
     @router.get("")
     def list_projects() -> list[ProjectSummary]:
@@ -104,6 +111,17 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
+    @router.delete("/{project_id}/lines/{line_id}", response_model=Project)
+    def delete_line(project_id: str, line_id: str) -> Project:
+        project = load_project(project_id)
+        cell_ids = {cell.id for cell in project.cells if cell.line_id == line_id}
+        remove_cell_audio(project, cell_ids)
+        try:
+            project.remove_line(line_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return save_project(project)
+
     @router.put("/{project_id}/lines/order", response_model=Project)
     def reorder_lines(project_id: str, payload: ReorderLinesRequest) -> Project:
         project = load_project(project_id)
@@ -129,6 +147,18 @@ def create_projects_router(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return save_project(project)
+
+    @router.delete("/{project_id}/references/{reference_id}", response_model=Project)
+    def delete_reference(project_id: str, reference_id: str) -> Project:
+        project = load_project(project_id)
+        cell_ids = {cell.id for cell in project.cells if cell.reference_id == reference_id}
+        remove_cell_audio(project, cell_ids)
+        try:
+            reference = project.remove_reference(reference_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        (store.project_dir(project.id) / reference.copied_path).unlink(missing_ok=True)
         return save_project(project)
 
     @router.post("/{project_id}/generate/all", response_model=Project)
@@ -189,10 +219,7 @@ def create_projects_router(
         project_dir = store.project_dir(project_id)
         if not project_dir.is_dir():
             raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-        import shutil
-
         shutil.rmtree(project_dir)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router
-
