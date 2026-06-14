@@ -7,7 +7,7 @@ from threading import Lock, RLock, Thread
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
-from app.models.project import Project, ProjectSummary
+from app.models.project import GenerationProgress, Project, ProjectSummary
 from app.schemas.api import (
     AppendLinesRequest,
     CreateProjectRequest,
@@ -29,12 +29,6 @@ from app.services.project_store import ProjectStore
 from app.services.reference_service import ReferenceService
 
 
-class GenerationProgress(BaseModel):
-    running_job_count: int = 0
-    running_job_kinds: list[str] = Field(default_factory=list)
-    has_running_jobs: bool = False
-
-
 class ProjectWithGenerationProgress(Project):
     generation_progress: GenerationProgress = Field(default_factory=GenerationProgress)
 
@@ -51,7 +45,13 @@ def create_projects_router(
     project_job_locks: dict[str, Lock] = {}
     project_job_locks_guard = RLock()
 
+    def refresh_project_presentation(project: Project) -> Project:
+        for cell in project.cells:
+            cell.refresh_display_status()
+        return project
+
     def attach_generation_progress(project: Project) -> ProjectWithGenerationProgress:
+        refresh_project_presentation(project)
         running_jobs = job_registry.list_running_for_project(project.id)
         return ProjectWithGenerationProgress(
             **project.model_dump(exclude={"generation_progress"}),
@@ -69,6 +69,7 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     def save_project(project: Project) -> ProjectWithGenerationProgress:
+        refresh_project_presentation(project)
         store.save(project)
         return attach_generation_progress(project)
 
@@ -319,6 +320,21 @@ def create_projects_router(
 
         start_worker(run)
         return job
+
+    @router.post(
+        "/{project_id}/cells/{cell_id}/playback-events",
+        response_model=ProjectWithGenerationProgress,
+    )
+    def mark_cell_played(project_id: str, cell_id: str) -> ProjectWithGenerationProgress:
+        project = load_project(project_id)
+        try:
+            cell = project.get_cell(cell_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if cell.current_result is None:
+            raise HTTPException(status_code=400, detail="Cell has no audio")
+        cell.playback_state = "played"
+        return save_project(project)
 
     @router.post("/{project_id}/playlist/items", response_model=ProjectWithGenerationProgress)
     def append_playlist_item(

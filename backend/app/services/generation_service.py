@@ -155,6 +155,7 @@ class GenerationService:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path.replace(output_path)
         cell.status = "ready"
+        cell.playback_state = "unplayed"
         cell.current_result = CellResult(
             audio_path=output_path.relative_to(project_dir).as_posix(),
             sample_rate=artifact.sample_rate,

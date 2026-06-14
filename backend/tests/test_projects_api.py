@@ -275,6 +275,59 @@ def test_project_payload_excludes_completed_jobs_from_running_count(tmp_path: Pa
     assert final_project["generation_progress"]["has_running_jobs"] is False
 
 
+def test_cells_start_as_not_generated_and_become_unplayed_after_generation(tmp_path: Path) -> None:
+    client = _client(tmp_path, FakeRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    created = client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    ).json()
+
+    assert created["cells"][0]["display_status"] == "not_generated"
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+
+    generated = client.get(f"/api/projects/{project_id}").json()
+    assert generated["cells"][0]["display_status"] == "unplayed"
+
+
+def test_regenerated_cell_returns_to_unplayed_after_being_played(tmp_path: Path) -> None:
+    client = _client(tmp_path, FakeRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+
+    client.post(f"/api/projects/{project_id}/cells/{cell_id}/playback-events")
+    played = client.get(f"/api/projects/{project_id}").json()
+    assert played["cells"][0]["display_status"] == "played"
+
+    regen = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regeneration-jobs",
+        json={"seed": 22},
+    ).json()
+    _wait_for_job(client, project_id, regen["id"])
+
+    regenerated = client.get(f"/api/projects/{project_id}").json()
+    assert regenerated["cells"][0]["display_status"] == "unplayed"
+
+
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:
     client = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]

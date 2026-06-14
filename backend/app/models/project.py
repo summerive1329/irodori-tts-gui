@@ -11,6 +11,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+CellDisplayStatus = Literal["not_generated", "generating", "unplayed", "played", "error"]
+
+
 class CellResult(BaseModel):
     audio_path: str
     sample_rate: int
@@ -42,6 +45,12 @@ class ExportPlaylistItem(BaseModel):
     created_at: datetime = Field(default_factory=_now)
 
 
+class GenerationProgress(BaseModel):
+    running_job_count: int = 0
+    running_job_kinds: list[str] = Field(default_factory=list)
+    has_running_jobs: bool = False
+
+
 class Cell(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     line_id: str
@@ -49,6 +58,20 @@ class Cell(BaseModel):
     status: Literal["idle", "queued", "generating", "ready", "error"] = "idle"
     error_message: str | None = None
     current_result: CellResult | None = None
+    playback_state: Literal["unplayed", "played"] = "unplayed"
+    display_status: CellDisplayStatus = "not_generated"
+
+    def refresh_display_status(self) -> None:
+        if self.status == "error":
+            self.display_status = "error"
+        elif self.status in {"queued", "generating"}:
+            self.display_status = "generating"
+        elif self.current_result is None:
+            self.display_status = "not_generated"
+        elif self.playback_state == "played":
+            self.display_status = "played"
+        else:
+            self.display_status = "unplayed"
 
 
 class ProjectSummary(BaseModel):
