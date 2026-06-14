@@ -160,9 +160,9 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<AppRouter />);
 
-    await screen.findByRole("heading", { name: "新しいプロジェクト" });
-    await user.type(screen.getByLabelText("プロジェクト名"), "demo");
-    await user.click(screen.getByRole("button", { name: "プロジェクトを作成" }));
+    await screen.findByRole("heading", { name: "Create a New Project" });
+    await user.type(screen.getByLabelText("Project name"), "demo");
+    await user.click(screen.getByRole("button", { name: "Create Project" }));
 
     expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
     expect(apiMocks.createProject).toHaveBeenCalledWith("demo");
@@ -197,7 +197,7 @@ describe("App", () => {
 
     render(<AppRouter />);
 
-    expect(screen.queryByRole("heading", { name: "新しいプロジェクト" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Create a New Project" })).not.toBeInTheDocument();
     expect(screen.getByText("Loading project…")).toBeInTheDocument();
 
     resolveProject(project);
@@ -263,7 +263,7 @@ describe("App", () => {
     expect(await screen.findByRole("button", { name: "network down" })).toBeInTheDocument();
     expect(screen.getByText("Unable to load project.")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("demo")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "新しいプロジェクト" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Create a New Project" })).not.toBeInTheDocument();
   });
 
   it("keeps the editor locked when a completed display job coexists with tracked running jobs", async () => {
@@ -297,7 +297,7 @@ describe("App", () => {
 
     render(<AppRouter />);
 
-    expect(await screen.findByRole("heading", { name: "新しいプロジェクト" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Create a New Project" })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/");
   });
 });

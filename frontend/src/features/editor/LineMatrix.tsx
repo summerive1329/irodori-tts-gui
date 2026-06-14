@@ -259,7 +259,7 @@ export function LineMatrix({
                   const regenerateLocked = cell.status === "generating" || (busy && !allowRegenerateWhileBusy);
                   return (
                     <article
-                      className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${isPlayed ? " is-played" : ""}`}
+                      className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${isPlayed ? " is-played" : " is-unplayed"}`}
                       key={cell.id}
                       onClick={() => onSelectCell(cell.id)}
                     >

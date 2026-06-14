@@ -192,4 +192,16 @@ describe("ProjectEditor", () => {
 
     expect(window.localStorage.getItem("irodori.dialogueColumnWidth")).toBe("520");
   });
+
+  it("moves project deletion behind the project menu", async () => {
+    const user = userEvent.setup();
+    const editorProps = props();
+    render(<ProjectEditor {...editorProps} />);
+
+    expect(screen.queryByRole("button", { name: "プロジェクト削除" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "プロジェクトメニュー" }));
+    await user.click(screen.getByRole("button", { name: "プロジェクトを削除" }));
+
+    expect(editorProps.onDeleteProject).toHaveBeenCalled();
+  });
 });

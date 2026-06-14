@@ -7,6 +7,7 @@ import { GenerationConsole } from "./GenerationConsole";
 import { LineDropzone } from "./LineDropzone";
 import { LineMatrix } from "./LineMatrix";
 import { PendingDeleteToast } from "./PendingDeleteToast";
+import { ProjectMenu } from "./ProjectMenu";
 import { ReferenceSidebar } from "./ReferenceSidebar";
 import { useDialogueColumnWidth } from "./useDialogueColumnWidth";
 import { usePendingLineDeletion } from "./usePendingLineDeletion";
@@ -132,7 +133,7 @@ export function ProjectEditor({
               <button type="submit" className="button button-primary">設定を保存</button>
             </form>
           </details>
-          <button type="button" className="button button-danger-quiet" onClick={onDeleteProject}>プロジェクト削除</button>
+          <ProjectMenu onDeleteProject={onDeleteProject} />
         </div>
       </header>
 
