@@ -75,8 +75,9 @@ def create_projects_router(
         return attach_generation_progress(project)
 
     def save_project(project: Project) -> ProjectWithGenerationProgress:
-        store.save(to_stored_project(project))
-        return attach_generation_progress(project)
+        stored_project = to_stored_project(project)
+        store.save(stored_project)
+        return attach_generation_progress(stored_project)
 
     def remove_cell_audio(project: Project, cell_ids: set[str]) -> None:
         project_dir = store.project_dir(project.id)

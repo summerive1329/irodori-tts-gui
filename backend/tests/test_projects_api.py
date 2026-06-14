@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 from time import monotonic, sleep
+from unittest.mock import patch
 
 import numpy as np
 import soundfile as sf
@@ -78,6 +80,25 @@ def test_projects_are_persisted_and_listed(tmp_path: Path) -> None:
     assert listed.status_code == 200
     assert [(item["id"], item["name"]) for item in listed.json()] == [(project_id, "demo")]
     assert loaded.json()["name"] == "demo"
+
+
+def test_mutation_response_updated_at_matches_persisted_project(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+
+    with patch(
+        "app.models.project._now",
+        side_effect=[
+            datetime(2026, 1, 1, tzinfo=timezone.utc),
+            datetime(2026, 1, 2, tzinfo=timezone.utc),
+        ],
+    ):
+        appended = client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    loaded = client.get(f"/api/projects/{project_id}")
+
+    assert appended.status_code == 200
+    assert loaded.status_code == 200
+    assert appended.json()["updated_at"] == loaded.json()["updated_at"]
 
 
 def test_line_import_appends_files_and_reference_upload_creates_matrix(tmp_path: Path) -> None:
