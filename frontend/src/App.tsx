@@ -26,6 +26,7 @@ export function App() {
     setRouteLoading(Boolean(projectId));
     if (!projectId) setBusy(true);
     if (projectId) setError(null);
+    if (projectId) setProject(null);
     setSelectedCellId(null);
     setExportUrl(null);
     setDisplayJob(null);
@@ -50,9 +51,9 @@ export function App() {
       .catch((reason) => {
         if (cancelled) return;
         showError(reason);
+        if (projectId) setProject(null);
         setRouteLoading(false);
         if (projectId && reason instanceof api.ApiError && reason.status === 404) {
-          setProject(null);
           navigate("/", { replace: true });
         }
       })
@@ -116,6 +117,15 @@ export function App() {
 
   if (projectId && routeLoading) {
     return <div className="route-loading-shell">Loading project…</div>;
+  }
+
+  if (projectId && (!project || project.id !== projectId)) {
+    return (
+      <>
+        <div className="route-loading-shell">Unable to load project.</div>
+        {error && <button type="button" className="global-error" onClick={() => setError(null)}>{error}</button>}
+      </>
+    );
   }
 
   if (!project) {

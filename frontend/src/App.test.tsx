@@ -235,6 +235,37 @@ describe("App", () => {
     expect(await screen.findByDisplayValue("second project")).toBeInTheDocument();
   });
 
+  it("does not re-show the previous project when switching routes and the next project load fails", async () => {
+    let rejectSecondProject!: (reason?: unknown) => void;
+    apiMocks.getProject.mockImplementation((projectId: string) => {
+      if (projectId === "project-1") return Promise.resolve(project);
+      return new Promise((_, reject) => {
+        rejectSecondProject = reject;
+      });
+    });
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<RoutedAppHarness />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "next project" }));
+    expect(screen.getByText("Loading project…")).toBeInTheDocument();
+
+    rejectSecondProject(new Error("network down"));
+
+    expect(await screen.findByRole("button", { name: "network down" })).toBeInTheDocument();
+    expect(screen.getByText("Unable to load project.")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("demo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "新しいプロジェクト" })).not.toBeInTheDocument();
+  });
+
   it("keeps the editor locked when a completed display job coexists with tracked running jobs", async () => {
     window.history.pushState({}, "", "/projects/project-1");
     apiMocks.getProject.mockResolvedValue(projectWithCells);
