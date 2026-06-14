@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 def _now() -> datetime:
@@ -59,19 +59,22 @@ class Cell(BaseModel):
     error_message: str | None = None
     current_result: CellResult | None = None
     playback_state: Literal["unplayed", "played"] = "unplayed"
-    display_status: CellDisplayStatus = "not_generated"
 
-    def refresh_display_status(self) -> None:
+    def _display_status(self) -> CellDisplayStatus:
         if self.status == "error":
-            self.display_status = "error"
+            return "error"
         elif self.status in {"queued", "generating"}:
-            self.display_status = "generating"
+            return "generating"
         elif self.current_result is None:
-            self.display_status = "not_generated"
+            return "not_generated"
         elif self.playback_state == "played":
-            self.display_status = "played"
-        else:
-            self.display_status = "unplayed"
+            return "played"
+        return "unplayed"
+
+    @computed_field
+    @property
+    def display_status(self) -> CellDisplayStatus:
+        return self._display_status()
 
 
 class ProjectSummary(BaseModel):

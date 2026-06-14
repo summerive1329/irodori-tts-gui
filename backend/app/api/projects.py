@@ -7,7 +7,7 @@ from threading import Lock, RLock, Thread
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
-from app.models.project import GenerationProgress, Project, ProjectSummary
+from app.models.project import Cell, GenerationProgress, Project, ProjectSummary
 from app.schemas.api import (
     AppendLinesRequest,
     CreateProjectRequest,
@@ -44,14 +44,10 @@ def create_projects_router(
     router = APIRouter(prefix="/api/projects", tags=["projects"])
     project_job_locks: dict[str, Lock] = {}
     project_job_locks_guard = RLock()
-
-    def refresh_project_presentation(project: Project) -> Project:
-        for cell in project.cells:
-            cell.refresh_display_status()
-        return project
+    project_write_locks: dict[str, Lock] = {}
+    project_write_locks_guard = RLock()
 
     def attach_generation_progress(project: Project) -> ProjectWithGenerationProgress:
-        refresh_project_presentation(project)
         running_jobs = job_registry.list_running_for_project(project.id)
         return ProjectWithGenerationProgress(
             **project.model_dump(exclude={"generation_progress"}),
@@ -69,7 +65,6 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     def save_project(project: Project) -> ProjectWithGenerationProgress:
-        refresh_project_presentation(project)
         store.save(project)
         return attach_generation_progress(project)
 
@@ -86,8 +81,36 @@ def create_projects_router(
         with project_job_locks_guard:
             return project_job_locks.setdefault(project_id, Lock())
 
+    def get_project_write_lock(project_id: str) -> Lock:
+        with project_write_locks_guard:
+            return project_write_locks.setdefault(project_id, Lock())
+
+    def save_merged_cell_update(
+        project_id: str,
+        cell_id: str,
+        apply_change,
+    ) -> ProjectWithGenerationProgress:
+        with get_project_write_lock(project_id):
+            project = load_project(project_id)
+            try:
+                cell = project.get_cell(cell_id)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            apply_change(cell)
+            return save_project(project)
+
     def persist_job_state(job_id: str, project: Project, cell) -> None:
-        save_project(project)
+        def apply_change(latest_cell: Cell) -> None:
+            latest_cell.status = cell.status
+            latest_cell.error_message = cell.error_message
+            latest_cell.current_result = cell.current_result
+            latest_cell.playback_state = cell.playback_state
+
+        with get_project_write_lock(project.id):
+            latest_project = store.load(project.id)
+            latest_cell = latest_project.get_cell(cell.id)
+            apply_change(latest_cell)
+            save_project(latest_project)
         if cell.status == "generating":
             job_registry.mark_generating(job_id, cell.id)
         elif cell.status == "ready":
@@ -326,15 +349,12 @@ def create_projects_router(
         response_model=ProjectWithGenerationProgress,
     )
     def mark_cell_played(project_id: str, cell_id: str) -> ProjectWithGenerationProgress:
-        project = load_project(project_id)
-        try:
-            cell = project.get_cell(cell_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        if cell.current_result is None:
-            raise HTTPException(status_code=400, detail="Cell has no audio")
-        cell.playback_state = "played"
-        return save_project(project)
+        def apply_change(cell: Cell) -> None:
+            if cell.current_result is None:
+                raise HTTPException(status_code=400, detail="Cell has no audio")
+            cell.playback_state = "played"
+
+        return save_merged_cell_update(project_id, cell_id, apply_change)
 
     @router.post("/{project_id}/playlist/items", response_model=ProjectWithGenerationProgress)
     def append_playlist_item(
