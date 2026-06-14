@@ -15,28 +15,34 @@ export function App() {
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [job, setJob] = useState<GenerationJob | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [trackedJobIds, setTrackedJobIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(true);
+  const [routeLoading, setRouteLoading] = useState(Boolean(projectId));
   const [error, setError] = useState<string | null>(null);
   const referenceQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
-    setBusy(true);
+    setRouteLoading(Boolean(projectId));
+    if (!projectId) setBusy(true);
     if (projectId) setError(null);
     setSelectedCellId(null);
     setExportUrl(null);
     setJob(null);
-    setActiveJobId(null);
+    setTrackedJobIds([]);
 
     const request = projectId
       ? api.getProject(projectId).then((loaded) => {
-          if (!cancelled) setProject(loaded);
+          if (!cancelled) {
+            setProject(loaded);
+            setRouteLoading(false);
+          }
         })
       : api.listProjects().then((listed) => {
           if (!cancelled) {
             setProject(null);
             setProjects(listed);
+            setRouteLoading(false);
           }
         });
 
@@ -44,6 +50,7 @@ export function App() {
       .catch((reason) => {
         if (cancelled) return;
         showError(reason);
+        setRouteLoading(false);
         if (projectId && reason instanceof api.ApiError && reason.status === 404) {
           setProject(null);
           navigate("/", { replace: true });
@@ -60,10 +67,10 @@ export function App() {
 
   useProjectJobs({
     projectId: projectId ?? null,
-    activeJobId,
+    trackedJobIds,
     setProject,
-    setJob,
-    setActiveJobId,
+    setDisplayJob: setJob,
+    setTrackedJobIds,
     setError,
   });
 
@@ -92,7 +99,11 @@ export function App() {
     try {
       const started = await action();
       setJob(started);
-      setActiveJobId(started.status === "running" ? started.id : null);
+      if (started.status === "running") {
+        setTrackedJobIds((current) => [...new Set([...current, started.id])]);
+      } else {
+        setTrackedJobIds([]);
+      }
       if (started.status !== "running" && projectId) {
         setProject(await api.getProject(projectId));
       }
@@ -101,6 +112,10 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (projectId && routeLoading && !project) {
+    return <div className="route-loading-shell">Loading project…</div>;
   }
 
   if (!project) {

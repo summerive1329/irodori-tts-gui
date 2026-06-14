@@ -3,49 +3,66 @@ import { useEffect, type Dispatch, type SetStateAction } from "react";
 import * as api from "../../api/client";
 import type { GenerationJob, Project } from "../../types";
 
+const MAX_RETRIES = 3;
+
 type Options = {
   projectId: string | null;
-  activeJobId: string | null;
+  trackedJobIds: string[];
   setProject: Dispatch<SetStateAction<Project | null>>;
-  setJob: Dispatch<SetStateAction<GenerationJob | null>>;
-  setActiveJobId: Dispatch<SetStateAction<string | null>>;
+  setDisplayJob: Dispatch<SetStateAction<GenerationJob | null>>;
+  setTrackedJobIds: Dispatch<SetStateAction<string[]>>;
   setError: Dispatch<SetStateAction<string | null>>;
 };
 
 export function useProjectJobs({
   projectId,
-  activeJobId,
+  trackedJobIds,
   setProject,
-  setJob,
-  setActiveJobId,
+  setDisplayJob,
+  setTrackedJobIds,
   setError,
 }: Options) {
   useEffect(() => {
-    if (!projectId || !activeJobId) return;
+    if (!projectId || trackedJobIds.length === 0) return;
 
-    const currentProjectId = projectId;
-    const currentJobId = activeJobId;
     let cancelled = false;
     let timer: number | undefined;
+    let failures = 0;
+    let currentJobIds = trackedJobIds;
+
+    function sameJobIds(next: string[]) {
+      return currentJobIds.length === next.length && currentJobIds.every((jobId, index) => jobId === next[index]);
+    }
 
     async function poll() {
       try {
-        const [project, job] = await Promise.all([
-          api.getProject(currentProjectId),
-          api.getJob(currentProjectId, currentJobId),
+        const [project, jobs] = await Promise.all([
+          api.getProject(projectId),
+          Promise.all(currentJobIds.map((jobId) => api.getJob(projectId, jobId))),
         ]);
         if (cancelled) return;
+        failures = 0;
         setProject(project);
-        setJob(job);
-        if (job.status === "running") {
+        const latestJob = jobs.at(-1) ?? null;
+        setDisplayJob(latestJob);
+        const runningJobIds = jobs.filter((job) => job.status === "running").map((job) => job.id);
+        if (!sameJobIds(runningJobIds)) {
+          currentJobIds = runningJobIds;
+          setTrackedJobIds(runningJobIds);
+        }
+        if (runningJobIds.length > 0) {
+          currentJobIds = runningJobIds;
           timer = window.setTimeout(poll, 500);
-        } else {
-          setActiveJobId(null);
         }
       } catch (reason) {
         if (cancelled) return;
-        setError(reason instanceof Error ? reason.message : String(reason));
-        setActiveJobId(null);
+        failures += 1;
+        if (failures > MAX_RETRIES) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setTrackedJobIds([]);
+          return;
+        }
+        timer = window.setTimeout(poll, failures * 750);
       }
     }
 
@@ -54,5 +71,5 @@ export function useProjectJobs({
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [activeJobId, projectId, setActiveJobId, setError, setJob, setProject]);
+  }, [projectId, setDisplayJob, setError, setProject, setTrackedJobIds, trackedJobIds]);
 }

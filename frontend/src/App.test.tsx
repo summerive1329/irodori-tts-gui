@@ -76,6 +76,25 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "書き出しリスト" })).toBeInTheDocument();
   });
 
+  it("does not flash the home screen while a routed project is loading", async () => {
+    let resolveProject!: (value: Project) => void;
+    apiMocks.getProject.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProject = resolve;
+      }),
+    );
+    window.history.pushState({}, "", "/projects/project-1");
+
+    render(<AppRouter />);
+
+    expect(screen.queryByRole("heading", { name: "新しいプロジェクト" })).not.toBeInTheDocument();
+    expect(screen.getByText("Loading project…")).toBeInTheDocument();
+
+    resolveProject(project);
+
+    expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
+  });
+
   it("returns to the project list when a routed project is missing", async () => {
     window.history.pushState({}, "", "/projects/missing");
     apiMocks.getProject.mockRejectedValue(new ApiError(404, "Project not found"));
