@@ -1,4 +1,4 @@
-export type CellStatus = "idle" | "generating" | "ready" | "error";
+export type CellStatus = "idle" | "queued" | "generating" | "ready" | "error";
 
 export type CellResult = {
   audio_path: string;
@@ -29,7 +29,30 @@ export type CellItem = {
   status: CellStatus;
   error_message: string | null;
   current_result: CellResult | null;
-  selected_for_export: boolean;
+  selected_for_export?: boolean;
+};
+
+export type ExportPlaylistItem = {
+  id: string;
+  cell_id: string;
+  line_id: string;
+  reference_id: string;
+  label: string;
+  created_at: string;
+};
+
+export type GenerationJob = {
+  id: string;
+  project_id: string;
+  kind: "generate_missing" | "generate_all" | "regenerate_cell";
+  status: "running" | "completed" | "failed";
+  total_cells: number;
+  completed_cells: number;
+  target_cell_ids: string[];
+  active_cell_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Project = {
@@ -48,7 +71,8 @@ export type Project = {
   references: ReferenceItem[];
   lines: LineItem[];
   cells: CellItem[];
-  export_order: string[];
+  export_playlist: ExportPlaylistItem[];
+  export_order?: string[];
 };
 
 export type ProjectSummary = Pick<Project, "id" | "name" | "updated_at">;

@@ -1,25 +1,66 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import * as api from "./api/client";
 import { ProjectEditor } from "./features/editor/ProjectEditor";
+import { useProjectJobs } from "./features/editor/useProjectJobs";
 import { ProjectHome } from "./features/projects/ProjectHome";
-import type { Project, ProjectSummary } from "./types";
+import type { GenerationJob, Project, ProjectSummary } from "./types";
 
 export function App() {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
+  const [job, setJob] = useState<GenerationJob | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const referenceQueue = useRef(Promise.resolve());
 
   useEffect(() => {
-    api.listProjects()
-      .then(setProjects)
-      .catch(showError)
-      .finally(() => setBusy(false));
-  }, []);
+    let cancelled = false;
+    setBusy(true);
+    setError(null);
+    setSelectedCellId(null);
+    setExportUrl(null);
+    setJob(null);
+    setActiveJobId(null);
+
+    const request = projectId
+      ? api.getProject(projectId).then((loaded) => {
+          if (!cancelled) setProject(loaded);
+        })
+      : api.listProjects().then((listed) => {
+          if (!cancelled) {
+            setProject(null);
+            setProjects(listed);
+          }
+        });
+
+    request
+      .catch((reason) => {
+        if (!cancelled) showError(reason);
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  useProjectJobs({
+    projectId: projectId ?? null,
+    activeJobId,
+    setProject,
+    setJob,
+    setActiveJobId,
+    setError,
+  });
 
   function showError(reason: unknown) {
     setError(reason instanceof Error ? reason.message : String(reason));
@@ -40,11 +81,20 @@ export function App() {
     }
   }
 
-  async function refreshProjects() {
+  async function startJob(action: () => Promise<GenerationJob>) {
+    setBusy(true);
+    setError(null);
     try {
-      setProjects(await api.listProjects());
+      const started = await action();
+      setJob(started);
+      setActiveJobId(started.status === "running" ? started.id : null);
+      if (started.status !== "running" && projectId) {
+        setProject(await api.getProject(projectId));
+      }
     } catch (reason) {
       showError(reason);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -55,10 +105,19 @@ export function App() {
           projects={projects}
           busy={busy}
           onCreate={async (name) => {
-            const created = await runProjectAction(() => api.createProject(name));
-            if (created) await refreshProjects();
+            setBusy(true);
+            setError(null);
+            try {
+              const created = await api.createProject(name);
+              setProject(created);
+              navigate(`/projects/${created.id}`);
+            } catch (reason) {
+              showError(reason);
+            } finally {
+              setBusy(false);
+            }
           }}
-          onOpen={(projectId) => void runProjectAction(() => api.getProject(projectId))}
+          onOpen={(id) => navigate(`/projects/${id}`)}
         />
         {error && <button type="button" className="global-error" onClick={() => setError(null)}>{error}</button>}
       </>
@@ -70,22 +129,16 @@ export function App() {
       <ProjectEditor
         key={project.id}
         project={project}
-        busy={busy}
+        busy={busy || job?.status === "running"}
         selectedCellId={selectedCellId}
         exportUrl={exportUrl}
-        onBack={() => {
-          setProject(null);
-          setSelectedCellId(null);
-          setExportUrl(null);
-          void refreshProjects();
-        }}
+        onBack={() => navigate("/")}
         onDeleteProject={async () => {
           if (!window.confirm(`Delete project “${project.name}”?`)) return;
           setBusy(true);
           try {
             await api.deleteProject(project.id);
-            setProject(null);
-            await refreshProjects();
+            navigate("/");
           } catch (reason) {
             showError(reason);
           } finally {
@@ -104,9 +157,9 @@ export function App() {
         onEditLine={(lineId, text) => void runProjectAction(() => api.updateLine(project.id, lineId, text))}
         onDeleteLine={(lineId) => void runProjectAction(() => api.deleteLine(project.id, lineId))}
         onReorder={(lineIds) => void runProjectAction(() => api.reorderLines(project.id, lineIds))}
-        onGenerate={(onlyMissing) => void runProjectAction(() => api.generateAll(project.id, onlyMissing))}
-        onRegenerate={(cellId, seed) => void runProjectAction(() => api.regenerateCell(project.id, cellId, seed))}
-        onSelectForExport={(cellId) => void runProjectAction(() => api.selectCell(project.id, cellId))}
+        onGenerate={(onlyMissing) => void startJob(() => api.startGenerationJob(project.id, onlyMissing))}
+        onRegenerate={(cellId, seed) => void startJob(() => api.startRegenerationJob(project.id, cellId, seed))}
+        onSelectForExport={() => undefined}
         onExport={async () => {
           setBusy(true);
           setError(null);
@@ -125,4 +178,3 @@ export function App() {
     </>
   );
 }
-

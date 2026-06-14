@@ -6,6 +6,7 @@ import type { Project } from "./types";
 
 const apiMocks = vi.hoisted(() => ({
   createProject: vi.fn(),
+  getProject: vi.fn(),
   listProjects: vi.fn(),
 }));
 
@@ -14,7 +15,7 @@ vi.mock("./api/client", async () => {
   return { ...actual, ...apiMocks };
 });
 
-import { App } from "./App";
+import { AppRouter } from "./router";
 
 const project: Project = {
   id: "project-1",
@@ -32,19 +33,21 @@ const project: Project = {
   references: [],
   lines: [],
   cells: [],
-  export_order: [],
+  export_playlist: [],
 };
 
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.pushState({}, "", "/");
     apiMocks.listProjects.mockResolvedValue([]);
     apiMocks.createProject.mockResolvedValue(project);
+    apiMocks.getProject.mockResolvedValue(project);
   });
 
   it("opens the editor after creating a project", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(<AppRouter />);
 
     await screen.findByRole("heading", { name: /start a project/i });
     await user.type(screen.getByLabelText("Project name"), "demo");
@@ -52,5 +55,15 @@ describe("App", () => {
 
     expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
     expect(apiMocks.createProject).toHaveBeenCalledWith("demo");
+  });
+
+  it("reloading a project route re-fetches the same project", async () => {
+    window.history.pushState({}, "", "/projects/project-1");
+    apiMocks.getProject.mockResolvedValue({ ...project, name: "Voice Session 01" });
+
+    render(<AppRouter />);
+
+    expect(await screen.findByDisplayValue("Voice Session 01")).toBeInTheDocument();
+    expect(apiMocks.getProject).toHaveBeenCalledWith("project-1");
   });
 });

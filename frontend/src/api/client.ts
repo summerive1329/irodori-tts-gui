@@ -1,4 +1,4 @@
-import type { Project, ProjectSummary } from "../types";
+import type { GenerationJob, Project, ProjectSummary } from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -87,16 +87,20 @@ export function deleteReference(projectId: string, referenceId: string): Promise
   return request(`/api/projects/${projectId}/references/${referenceId}`, { method: "DELETE" });
 }
 
-export function generateAll(projectId: string, onlyMissing: boolean): Promise<Project> {
-  return request(`/api/projects/${projectId}/generate/all`, json("POST", { only_missing: onlyMissing }));
+export function startGenerationJob(projectId: string, onlyMissing: boolean): Promise<GenerationJob> {
+  return request(`/api/projects/${projectId}/generate/jobs`, json("POST", { only_missing: onlyMissing }));
 }
 
-export function regenerateCell(projectId: string, cellId: string, seed: number | null): Promise<Project> {
-  return request(`/api/projects/${projectId}/cells/${cellId}/regenerate`, json("POST", { seed }));
+export function getJob(projectId: string, jobId: string): Promise<GenerationJob> {
+  return request(`/api/projects/${projectId}/jobs/${jobId}`);
 }
 
-export function selectCell(projectId: string, cellId: string, selected = true): Promise<Project> {
-  return request(`/api/projects/${projectId}/cells/${cellId}/selection`, json("PUT", { selected }));
+export function startRegenerationJob(
+  projectId: string,
+  cellId: string,
+  seed: number | null,
+): Promise<GenerationJob> {
+  return request(`/api/projects/${projectId}/cells/${cellId}/regeneration-jobs`, json("POST", { seed }));
 }
 
 export function exportProject(projectId: string): Promise<{ media_url: string }> {

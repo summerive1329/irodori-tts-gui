@@ -16,6 +16,7 @@ type Props = {
 
 const statusLabel: Record<CellItem["status"], string> = {
   idle: "Not generated",
+  queued: "Queued",
   generating: "Generating",
   ready: "Ready",
   error: "Error",

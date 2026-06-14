@@ -21,7 +21,7 @@ const project: Project = {
   references: [],
   lines: [],
   cells: [],
-  export_order: [],
+  export_playlist: [],
 };
 
 function props() {
@@ -68,7 +68,7 @@ describe("ProjectEditor", () => {
       lines: [{ id: "line-1", text: "hello", order_index: 0 }],
       references: [{ id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 }],
       cells: [{ id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "idle", error_message: null, current_result: null, selected_for_export: false }],
-      export_order: ["line-1"],
+      export_playlist: [],
     };
     render(<ProjectEditor {...editorProps} />);
 
