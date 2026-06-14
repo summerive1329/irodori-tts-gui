@@ -5,6 +5,7 @@ backend/.venv/
 backend/.pytest_cache/
 backend/project_data/
 backend/*.egg-info/
+project_data/
 frontend/node_modules/
 frontend/dist/
 frontend/*.tsbuildinfo
