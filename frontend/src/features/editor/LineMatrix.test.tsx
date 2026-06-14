@@ -31,6 +31,7 @@ function matrixProps() {
     lines,
     references,
     cells,
+    busy: false,
     autoPlay: false,
     selectedCellId: null,
     onSelectCell: vi.fn(),
@@ -135,5 +136,16 @@ describe("LineMatrix", () => {
     fireEvent.drop(screen.getByLabelText("3番目へ移動"));
 
     expect(props.onReorder).toHaveBeenCalledWith(["line-2", "line-3", "line-1"]);
+  });
+
+  it("keeps playback available but disables project mutations while busy", () => {
+    const props = matrixProps();
+    props.busy = true;
+    render(<LineMatrix {...props} />);
+
+    expect(screen.getByLabelText("音声: toru / hello")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "再生成: toru / hello" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "リストに追加: toru / hello" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "toruを上から追加" })).toBeDisabled();
   });
 });

@@ -171,6 +171,7 @@ export function ProjectEditor({
             lines={project.lines}
             references={project.references}
             cells={project.cells}
+            busy={busy}
             autoPlay={autoPlay}
             selectedCellId={selectedCellId}
             onSelectCell={onSelectCell}

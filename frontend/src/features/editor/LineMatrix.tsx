@@ -7,6 +7,7 @@ type Props = {
   lines: LineItem[];
   references: ReferenceItem[];
   cells: CellItem[];
+  busy: boolean;
   autoPlay: boolean;
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
@@ -32,6 +33,7 @@ export function LineMatrix({
   lines,
   references,
   cells,
+  busy,
   autoPlay,
   selectedCellId,
   onSelectCell,
@@ -98,12 +100,12 @@ export function LineMatrix({
               setInsertionIndex(null);
             }}
           >
-            <label>追加するセリフ<input autoFocus value={insertionText} onChange={(event) => setInsertionText(event.target.value)} /></label>
-            <button type="submit" className="button button-primary" disabled={!insertionText.trim()}>挿入</button>
+            <label>追加するセリフ<input autoFocus disabled={busy} value={insertionText} onChange={(event) => setInsertionText(event.target.value)} /></label>
+            <button type="submit" className="button button-primary" disabled={busy || !insertionText.trim()}>挿入</button>
             <button type="button" className="button button-quiet" onClick={() => setInsertionIndex(null)}>閉じる</button>
           </form>
         ) : (
-          <button type="button" className="line-insert-button" onClick={() => setInsertionIndex(index)}>＋ {label}</button>
+          <button type="button" className="line-insert-button" disabled={busy} onClick={() => setInsertionIndex(index)}>＋ {label}</button>
         )}
         {draggedLineId && <span className="drop-hint">ここへ移動</span>}
       </div>
@@ -131,7 +133,7 @@ export function LineMatrix({
           <div className="matrix-reference-header" key={reference.id}>
             <strong>{reference.label}</strong>
             <small>{reference.source_filename}</small>
-            <button type="button" className="column-add-button" aria-label={`${reference.label}を上から追加`} onClick={() => onAppendReferenceColumn(reference.id)}>上から追加</button>
+            <button type="button" className="column-add-button" disabled={busy} aria-label={`${reference.label}を上から追加`} onClick={() => onAppendReferenceColumn(reference.id)}>上から追加</button>
           </div>
         ))}
         {references.length === 0 && <div className="matrix-reference-header is-empty">参照音声を追加すると生成セルが表示されます</div>}
@@ -144,6 +146,7 @@ export function LineMatrix({
                 <span className="line-number">{String(lineIndex + 1).padStart(2, "0")}</span>
                 <textarea
                   defaultValue={line.text}
+                  disabled={busy}
                   aria-label={`セリフ ${lineIndex + 1}`}
                   onBlur={(event) => {
                     if (event.target.value.trim() !== line.text) onEditLine(line.id, event.target.value);
@@ -153,7 +156,8 @@ export function LineMatrix({
                   <button
                     type="button"
                     className="drag-handle"
-                    draggable
+                    draggable={!busy}
+                    disabled={busy}
                     aria-label={`並べ替え: ${line.text}`}
                     onDragStart={(event) => {
                       setDraggedLineId(line.id);
@@ -163,7 +167,7 @@ export function LineMatrix({
                   >
                     ≡
                   </button>
-                  {onDeleteLine && <button type="button" aria-label={`削除: ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
+                  {onDeleteLine && <button type="button" disabled={busy} aria-label={`削除: ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
                 </div>
               </div>
 
@@ -186,7 +190,7 @@ export function LineMatrix({
                         <button
                           type="button"
                           className="playlist-add-button"
-                          disabled={!cell.current_result}
+                          disabled={busy || !cell.current_result}
                           aria-label={`リストに追加: ${reference.label} / ${line.text}`}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -217,7 +221,7 @@ export function LineMatrix({
                         type="button"
                         className="regen-button"
                         aria-label={`再生成: ${reference.label} / ${line.text}`}
-                        disabled={cell.status === "generating"}
+                        disabled={busy || cell.status === "generating"}
                         onClick={(event) => {
                           event.stopPropagation();
                           onRegenerate(cell.id);
