@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from threading import Thread
+from threading import Lock, RLock, Thread
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 
@@ -37,6 +37,8 @@ def create_projects_router(
     job_registry: JobRegistry,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/projects", tags=["projects"])
+    project_job_locks: dict[str, Lock] = {}
+    project_job_locks_guard = RLock()
 
     def load_project(project_id: str) -> Project:
         try:
@@ -56,6 +58,10 @@ def create_projects_router(
 
     def start_worker(target) -> None:
         Thread(target=target, daemon=True).start()
+
+    def get_project_job_lock(project_id: str) -> Lock:
+        with project_job_locks_guard:
+            return project_job_locks.setdefault(project_id, Lock())
 
     def persist_job_state(job_id: str, project: Project, cell) -> None:
         save_project(project)
@@ -205,32 +211,29 @@ def create_projects_router(
     )
     def start_generate_job(project_id: str, payload: GenerateAllRequest) -> JobSnapshot:
         project = load_project(project_id)
-        target_cells = [
-            cell
+        target_cell_ids = [
+            cell.id
             for cell in project.cells
             if not payload.only_missing or cell.current_result is None
         ]
-        for cell in target_cells:
-            cell.status = "queued"
-            cell.error_message = None
-        save_project(project)
         kind = "generate_missing" if payload.only_missing else "generate_all"
-        job = job_registry.create(project.id, kind, [cell.id for cell in target_cells])
+        job = job_registry.create(project.id, kind, target_cell_ids)
 
         def run() -> None:
-            worker_project = load_project(project_id)
-            try:
-                generation_service.generate_all(
-                    worker_project,
-                    only_missing=payload.only_missing,
-                    on_state_change=lambda current, cell: persist_job_state(job.id, current, cell),
-                )
-            except Exception as exc:
-                if job_registry.get(job.id).status == "running":
-                    job_registry.mark_failed(job.id, str(exc))
-                save_project(worker_project)
+            with get_project_job_lock(project_id):
+                worker_project = load_project(project_id)
+                try:
+                    generation_service.generate_all(
+                        worker_project,
+                        only_missing=payload.only_missing,
+                        on_state_change=lambda current, cell: persist_job_state(job.id, current, cell),
+                    )
+                except Exception as exc:
+                    if job_registry.get(job.id).status == "running":
+                        job_registry.mark_failed(job.id, str(exc))
+                    save_project(worker_project)
 
-        if target_cells:
+        if target_cell_ids:
             start_worker(run)
         return job
 
@@ -257,29 +260,27 @@ def create_projects_router(
     ) -> JobSnapshot:
         project = load_project(project_id)
         try:
-            cell = project.get_cell(cell_id)
+            project.get_cell(cell_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        cell.status = "queued"
-        cell.error_message = None
-        save_project(project)
-        job = job_registry.create(project.id, "regenerate_cell", [cell.id])
+        job = job_registry.create(project.id, "regenerate_cell", [cell_id])
 
         def run() -> None:
-            worker_project = load_project(project_id)
-            try:
-                generation_service.regenerate_cell(
-                    worker_project,
-                    cell_id,
-                    seed=payload.seed,
-                    on_state_change=lambda current, changed: persist_job_state(
-                        job.id, current, changed
-                    ),
-                )
-            except Exception as exc:
-                if job_registry.get(job.id).status == "running":
-                    job_registry.mark_failed(job.id, str(exc), cell_id)
-                save_project(worker_project)
+            with get_project_job_lock(project_id):
+                worker_project = load_project(project_id)
+                try:
+                    generation_service.regenerate_cell(
+                        worker_project,
+                        cell_id,
+                        seed=payload.seed,
+                        on_state_change=lambda current, changed: persist_job_state(
+                            job.id, current, changed
+                        ),
+                    )
+                except Exception as exc:
+                    if job_registry.get(job.id).status == "running":
+                        job_registry.mark_failed(job.id, str(exc), cell_id)
+                    save_project(worker_project)
 
         start_worker(run)
         return job

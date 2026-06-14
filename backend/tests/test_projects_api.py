@@ -21,7 +21,8 @@ class FakeRuntimeManager:
         self.generated_cells += 1
         output_path.parent.mkdir(parents=True, exist_ok=True)
         sf.write(output_path, np.zeros(1200, dtype=np.float32), 24000)
-        return GenerationArtifact(sample_rate=24000, duration_sec=0.05, used_seed=11)
+        used_seed = parameters.seed if parameters.seed is not None else 1000 + self.generated_cells
+        return GenerationArtifact(sample_rate=24000, duration_sec=0.05, used_seed=used_seed)
 
 
 class BlockingRuntimeManager(FakeRuntimeManager):
@@ -29,11 +30,15 @@ class BlockingRuntimeManager(FakeRuntimeManager):
         super().__init__()
         self.started = Event()
         self.release = Event()
+        self.allow_regeneration = Event()
 
     def synthesize(self, prepared, text, output_path: Path, parameters) -> GenerationArtifact:
         self.started.set()
-        if not self.release.wait(timeout=3):
-            raise TimeoutError("Timed out waiting to release blocked generation")
+        if parameters.seed is None:
+            if not self.release.wait(timeout=3):
+                raise TimeoutError("Timed out waiting to release blocked generation")
+        elif not self.allow_regeneration.wait(timeout=3):
+            raise TimeoutError("Timed out waiting to release blocked regeneration")
         return super().synthesize(prepared, text, output_path, parameters)
 
 
@@ -163,6 +168,7 @@ def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: 
 
     runtime_manager.release.set()
     generated_job = _wait_for_job(client, project_id, generated.json()["id"])
+    runtime_manager.allow_regeneration.set()
     regeneration_job = _wait_for_job(client, project_id, regen.json()["id"])
 
     assert generated.json()["status"] == "running"
@@ -178,6 +184,7 @@ def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: 
     assert all(cell["current_result"] is not None for cell in final_cells.values())
     assert final_cells[project["cells"][0]["id"]]["current_result"]["audio_path"].endswith(".wav")
     assert final_cells[project["cells"][1]["id"]]["current_result"]["audio_path"].endswith(".wav")
+    assert final_cells[project["cells"][0]["id"]]["current_result"]["seed"] != 11
     assert final_cells[project["cells"][1]["id"]]["current_result"]["seed"] == 11
 
 

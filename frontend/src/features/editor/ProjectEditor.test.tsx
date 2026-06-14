@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -24,7 +25,7 @@ const project: Project = {
   export_playlist: [],
 };
 
-function props() {
+function props(): ComponentProps<typeof ProjectEditor> {
   return {
     project,
     busy: false,
@@ -119,13 +120,20 @@ describe("ProjectEditor", () => {
     editorProps.project = {
       ...project,
       lines: [{ id: "line-1", text: "hello", order_index: 0 }],
-      references: [{ id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 }],
-      cells: [{ id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "ready", error_message: null, current_result: null }],
+      references: [
+        { id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 },
+        { id: "ref-2", label: "lize", source_filename: "lize.wav", copied_path: "references/lize.wav", duration_sec: 1 },
+      ],
+      cells: [
+        { id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "ready", error_message: null, current_result: null },
+        { id: "cell-2", line_id: "line-1", reference_id: "ref-2", status: "ready", error_message: null, current_result: null },
+      ],
       export_playlist: [],
     };
     render(<ProjectEditor {...editorProps} />);
 
     expect(screen.getByRole("button", { name: "再生成: toru / hello" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "再生成: lize / hello" })).toBeDisabled();
   });
 
   it("inserts a line at the requested position", async () => {
