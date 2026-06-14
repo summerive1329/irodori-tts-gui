@@ -8,6 +8,7 @@ type Props = {
   references: ReferenceItem[];
   cells: CellItem[];
   busy: boolean;
+  allowRegenerateWhileBusy?: boolean;
   autoPlay: boolean;
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
@@ -34,6 +35,7 @@ export function LineMatrix({
   references,
   cells,
   busy,
+  allowRegenerateWhileBusy = false,
   autoPlay,
   selectedCellId,
   onSelectCell,
@@ -178,6 +180,7 @@ export function LineMatrix({
                   const audioUrl = cell.current_result
                     ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
                     : null;
+                  const regenerateLocked = cell.status === "generating" || (busy && !allowRegenerateWhileBusy);
                   return (
                     <article
                       className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${playedCellIds.includes(cell.id) ? " is-played" : ""}`}
@@ -221,7 +224,7 @@ export function LineMatrix({
                         type="button"
                         className="regen-button"
                         aria-label={`再生成: ${reference.label} / ${line.text}`}
-                        disabled={busy || cell.status === "generating"}
+                        disabled={regenerateLocked}
                         onClick={(event) => {
                           event.stopPropagation();
                           onRegenerate(cell.id);

@@ -148,4 +148,16 @@ describe("LineMatrix", () => {
     expect(screen.getByRole("button", { name: "リストに追加: toru / hello" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "toruを上から追加" })).toBeDisabled();
   });
+
+  it("keeps regenerate available while the project is busy", async () => {
+    const user = userEvent.setup();
+    const props = matrixProps();
+    props.busy = true;
+    // @ts-expect-error Task 2 adds this prop.
+    render(<LineMatrix {...props} allowRegenerateWhileBusy />);
+
+    await user.click(screen.getByRole("button", { name: "再生成: toru / hello" }));
+
+    expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");
+  });
 });

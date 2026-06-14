@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Event
 from time import monotonic, sleep
 
 import numpy as np
@@ -21,6 +22,19 @@ class FakeRuntimeManager:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         sf.write(output_path, np.zeros(1200, dtype=np.float32), 24000)
         return GenerationArtifact(sample_rate=24000, duration_sec=0.05, used_seed=11)
+
+
+class BlockingRuntimeManager(FakeRuntimeManager):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = Event()
+        self.release = Event()
+
+    def synthesize(self, prepared, text, output_path: Path, parameters) -> GenerationArtifact:
+        self.started.set()
+        if not self.release.wait(timeout=3):
+            raise TimeoutError("Timed out waiting to release blocked generation")
+        return super().synthesize(prepared, text, output_path, parameters)
 
 
 def _client(tmp_path: Path, runtime_manager: FakeRuntimeManager | None = None) -> TestClient:
@@ -121,6 +135,41 @@ def test_generate_and_regenerate_jobs_update_only_target_cells(tmp_path: Path) -
     assert runtime_manager.generated_cells == 3
     after = client.get(f"/api/projects/{project_id}").json()
     assert after["cells"][1]["current_result"] == untouched
+
+
+def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: Path) -> None:
+    runtime_manager = BlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    generated = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": False},
+    )
+    assert generated.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    project = client.get(f"/api/projects/{project_id}").json()
+    regen = client.post(
+        f"/api/projects/{project_id}/cells/{project['cells'][1]['id']}/regeneration-jobs",
+        json={"seed": 11},
+    )
+
+    runtime_manager.release.set()
+    generated_job = _wait_for_job(client, project_id, generated.json()["id"])
+    regeneration_job = _wait_for_job(client, project_id, regen.json()["id"])
+
+    assert generated.json()["status"] == "running"
+    assert regen.status_code == 202
+    assert regen.json()["kind"] == "regenerate_cell"
+    assert generated_job["status"] == "completed"
+    assert regeneration_job["status"] == "completed"
 
 
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:
