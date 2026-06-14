@@ -10,8 +10,8 @@ describe("ProjectHome", () => {
     const onCreate = vi.fn();
     render(<ProjectHome projects={[]} busy={false} onCreate={onCreate} onOpen={() => undefined} />);
 
-    await user.type(screen.getByLabelText("Project name"), "  demo  ");
-    await user.click(screen.getByRole("button", { name: "Create project" }));
+    await user.type(screen.getByLabelText("プロジェクト名"), "  demo  ");
+    await user.click(screen.getByRole("button", { name: "プロジェクトを作成" }));
 
     expect(onCreate).toHaveBeenCalledWith("demo");
   });

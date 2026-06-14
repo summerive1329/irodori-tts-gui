@@ -25,14 +25,14 @@ export function ReferenceSidebar({ projectId, references, busy, onAdd, onDelete 
       <div className="section-heading compact">
         <div>
           <span className="eyebrow">VOICE BANK</span>
-          <h2>References</h2>
+          <h2>参照音声</h2>
         </div>
         <span className="section-index">{String(references.length).padStart(2, "0")}</span>
       </div>
       <input
         ref={inputRef}
         className="visually-hidden"
-        aria-label="Add reference audio"
+        aria-label="参照音声を追加"
         type="file"
         accept=".wav,.mp3,.flac,.ogg,audio/*"
         multiple
@@ -44,7 +44,7 @@ export function ReferenceSidebar({ projectId, references, busy, onAdd, onDelete 
       />
       <button type="button" className="reference-add" disabled={busy} onClick={() => inputRef.current?.click()}>
         <span>＋</span>
-        Add reference audio
+        参照音声を追加
       </button>
 
       <div className="reference-list">
@@ -57,7 +57,7 @@ export function ReferenceSidebar({ projectId, references, busy, onAdd, onDelete 
               <span>{reference.duration_sec.toFixed(1)} sec</span>
             </div>
             <audio controls preload="none" src={`/media/projects/${projectId}/${reference.copied_path}`} />
-            <button type="button" className="icon-button" aria-label={`Delete reference ${reference.label}`} disabled={busy} onClick={() => onDelete(reference.id)}>×</button>
+            <button type="button" className="icon-button" aria-label={`参照音声を削除: ${reference.label}`} disabled={busy} onClick={() => onDelete(reference.id)}>×</button>
           </article>
         ))}
       </div>

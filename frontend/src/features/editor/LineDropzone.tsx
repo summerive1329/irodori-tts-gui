@@ -41,7 +41,7 @@ export function LineDropzone({ busy, onFilesSelected }: Props) {
         accept={acceptedExtensions}
         multiple
         disabled={busy}
-        aria-label="Import dialogue files"
+        aria-label="セリフファイルを読み込む"
         onChange={(event) => {
           if (event.target.files) submit(event.target.files);
           event.target.value = "";
@@ -49,11 +49,11 @@ export function LineDropzone({ busy, onFilesSelected }: Props) {
       />
       <div>
         <span className="eyebrow">SCRIPT INTAKE</span>
-        <strong>Drop text files here</strong>
-        <small>Each non-empty line is appended to the end.</small>
+        <strong>テキストファイルをここへドロップ</strong>
+        <small>空行を除き、1行ずつ末尾へ追加します。</small>
       </div>
       <button type="button" className="button button-quiet" disabled={busy} onClick={() => inputRef.current?.click()}>
-        Choose files
+        ファイルを選択
       </button>
     </div>
   );

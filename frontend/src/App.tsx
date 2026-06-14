@@ -135,7 +135,7 @@ export function App() {
         exportUrl={exportUrl}
         onBack={() => navigate("/")}
         onDeleteProject={async () => {
-          if (!window.confirm(`Delete project “${project.name}”?`)) return;
+          if (!window.confirm(`プロジェクト「${project.name}」を削除しますか？`)) return;
           setBusy(true);
           try {
             await api.deleteProject(project.id);

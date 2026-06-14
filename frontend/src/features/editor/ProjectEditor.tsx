@@ -99,14 +99,14 @@ export function ProjectEditor({
         </button>
         <input
           className="project-title-input"
-          aria-label="Current project name"
+          aria-label="プロジェクト名"
           value={settings.name}
           onChange={(event) => setSettings({ ...settings, name: event.target.value })}
           onBlur={() => settings.name.trim() && onSaveSettings({ ...settings, name: settings.name.trim() })}
         />
         <div className="header-actions">
           <details className="settings-menu">
-            <summary className="button button-quiet">Settings</summary>
+            <summary className="button button-quiet">設定</summary>
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -122,10 +122,10 @@ export function ProjectEditor({
                 <label>Text CFG<input type="number" step="0.1" min="0" value={settings.cfg_scale_text} onChange={(event) => setSettings({ ...settings, cfg_scale_text: Number(event.target.value) })} /></label>
                 <label>Speaker CFG<input type="number" step="0.1" min="0" value={settings.cfg_scale_speaker} onChange={(event) => setSettings({ ...settings, cfg_scale_speaker: Number(event.target.value) })} /></label>
               </div>
-              <button type="submit" className="button button-primary">Save settings</button>
+              <button type="submit" className="button button-primary">設定を保存</button>
             </form>
           </details>
-          <button type="button" className="button button-danger-quiet" onClick={onDeleteProject}>Delete project</button>
+          <button type="button" className="button button-danger-quiet" onClick={onDeleteProject}>プロジェクト削除</button>
         </div>
       </header>
 
@@ -138,7 +138,7 @@ export function ProjectEditor({
             <details className="manual-entry">
               <summary>セリフを貼り付け</summary>
               <label>
-                Manual dialogue
+                まとめて追加するセリフ
                 <textarea value={manualText} placeholder="1行につき1セリフ" onChange={(event) => setManualText(event.target.value)} />
               </label>
               <button
@@ -151,7 +151,7 @@ export function ProjectEditor({
                   setManualText("");
                 }}
               >
-                Append lines
+                末尾に追加
               </button>
             </details>
           </div>

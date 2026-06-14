@@ -16,15 +16,15 @@ export function ProjectHome({ projects, busy, onCreate, onOpen }: Props) {
     <main className="project-home">
       <section className="home-intro">
         <span className="eyebrow">IRODORI STUDIO / LOCAL</span>
-        <h1>Shape every line,<br />keep every voice.</h1>
-        <p>Reference-driven speech production with a clear view of every take.</p>
+        <h1>声を比べて、<br />一行ずつ仕上げる。</h1>
+        <p>参照音声ごとの生成結果を見渡し、納得できるテイクだけを自由な順番で組み立てるローカル音声制作環境。</p>
       </section>
 
       <section className="project-panel">
         <div className="section-heading">
           <div>
             <span className="eyebrow">NEW SESSION</span>
-            <h2>Start a project</h2>
+            <h2>新しいプロジェクト</h2>
           </div>
           <span className="section-index">01</span>
         </div>
@@ -37,14 +37,14 @@ export function ProjectHome({ projects, busy, onCreate, onOpen }: Props) {
           }}
         >
           <label>
-            Project name
-            <input value={name} disabled={busy} onChange={(event) => setName(event.target.value)} placeholder="Voice scene 01" />
+            プロジェクト名
+            <input value={name} disabled={busy} onChange={(event) => setName(event.target.value)} placeholder="ボイスシーン 01" />
           </label>
-          <button className="button button-primary" type="submit" disabled={busy || !name.trim()}>Create project</button>
+          <button className="button button-primary" type="submit" disabled={busy || !name.trim()}>プロジェクトを作成</button>
         </form>
 
         <div className="project-list-heading">
-          <span className="eyebrow">RECENT PROJECTS</span>
+          <span className="eyebrow">最近のプロジェクト</span>
           <span>{projects.length}</span>
         </div>
         <div className="project-list">
@@ -56,7 +56,7 @@ export function ProjectHome({ projects, busy, onCreate, onOpen }: Props) {
               <span className="project-card-arrow">↗</span>
             </button>
           ))}
-          {projects.length === 0 && <p className="project-list-empty">No saved projects yet.</p>}
+          {projects.length === 0 && <p className="project-list-empty">保存済みプロジェクトはまだありません。</p>}
         </div>
       </section>
     </main>

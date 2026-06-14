@@ -14,7 +14,7 @@ describe("ReferenceSidebar", () => {
     ];
     render(<ReferenceSidebar projectId="project-1" references={[]} busy={false} onAdd={onAdd} onDelete={() => undefined} />);
 
-    await user.upload(screen.getByLabelText("Add reference audio"), files);
+    await user.upload(screen.getByLabelText("参照音声を追加"), files);
 
     expect(onAdd).toHaveBeenNthCalledWith(1, "toru", files[0]);
     expect(onAdd).toHaveBeenNthCalledWith(2, "lize", files[1]);

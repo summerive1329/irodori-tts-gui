@@ -29,7 +29,7 @@ export function GenerationConsole({
     <section className="generation-console">
       <div className="generation-console-actions">
         <button type="button" className="button button-primary" disabled={busy || !canGenerate} onClick={onGenerateMissing}>未生成を実行</button>
-        <button type="button" className="button button-quiet" disabled={busy || !canGenerate} onClick={onGenerateAll}>全セルを再生成</button>
+        <button type="button" className="button button-quiet" disabled={busy || !canGenerate} onClick={onGenerateAll}>全セルを実行</button>
       </div>
       <div className={`generation-progress${job?.status === "running" ? " is-running" : ""}`}>
         <span className="status-dot" />

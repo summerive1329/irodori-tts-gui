@@ -60,8 +60,8 @@ describe("ProjectEditor", () => {
     const editorProps = props();
     render(<ProjectEditor {...editorProps} />);
 
-    await user.type(screen.getByLabelText("Manual dialogue"), "one\n\ntwo");
-    await user.click(screen.getByRole("button", { name: "Append lines" }));
+    await user.type(screen.getByLabelText("まとめて追加するセリフ"), "one\n\ntwo");
+    await user.click(screen.getByRole("button", { name: "末尾に追加" }));
 
     expect(editorProps.onAppendLines).toHaveBeenCalledWith(["one", "two"]);
   });

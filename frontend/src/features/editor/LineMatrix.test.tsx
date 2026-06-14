@@ -49,7 +49,7 @@ describe("LineMatrix", () => {
     const props = matrixProps();
     render(<LineMatrix {...props} />);
 
-    await user.click(screen.getByRole("button", { name: "Regenerate toru / hello" }));
+    await user.click(screen.getByRole("button", { name: "再生成: toru / hello" }));
 
     expect(props.onRegenerate).toHaveBeenCalledOnce();
     expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");

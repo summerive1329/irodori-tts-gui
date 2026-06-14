@@ -49,9 +49,9 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<AppRouter />);
 
-    await screen.findByRole("heading", { name: /start a project/i });
-    await user.type(screen.getByLabelText("Project name"), "demo");
-    await user.click(screen.getByRole("button", { name: "Create project" }));
+    await screen.findByRole("heading", { name: "新しいプロジェクト" });
+    await user.type(screen.getByLabelText("プロジェクト名"), "demo");
+    await user.click(screen.getByRole("button", { name: "プロジェクトを作成" }));
 
     expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
     expect(apiMocks.createProject).toHaveBeenCalledWith("demo");

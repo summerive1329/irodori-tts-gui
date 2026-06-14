@@ -30,8 +30,8 @@ describe("CellDetailPane", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Seed"), "42");
-    await user.click(screen.getByRole("button", { name: "Regenerate selected cell" }));
+    await user.type(screen.getByLabelText("シード"), "42");
+    await user.click(screen.getByRole("button", { name: "選択セルを再生成" }));
 
     expect(onRegenerate).toHaveBeenCalledWith("cell-1", 42);
   });

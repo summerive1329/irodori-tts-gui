@@ -20,8 +20,8 @@ export function CellDetailPane({ projectId, cell, line, reference, busy, onRegen
     return (
       <aside className="detail-pane is-empty">
         <span className="eyebrow">TAKE INSPECTOR</span>
-        <h2>Select a result cell</h2>
-        <p>Playback, seed and cell-only regeneration live here.</p>
+        <h2>生成結果を選択</h2>
+        <p>再生、シード指定、セル単位の再生成をここで操作できます。</p>
       </aside>
     );
   }
@@ -37,15 +37,15 @@ export function CellDetailPane({ projectId, cell, line, reference, busy, onRegen
       <div className="detail-voice">{reference.label}</div>
       <blockquote>{line.text}</blockquote>
       <dl>
-        <div><dt>Status</dt><dd>{cell.status}</dd></div>
-        <div><dt>Duration</dt><dd>{cell.current_result ? `${cell.current_result.duration_sec.toFixed(2)} sec` : "—"}</dd></div>
-        <div><dt>Last seed</dt><dd>{cell.current_result?.seed ?? "random"}</dd></div>
+        <div><dt>状態</dt><dd>{cell.status}</dd></div>
+        <div><dt>長さ</dt><dd>{cell.current_result ? `${cell.current_result.duration_sec.toFixed(2)} 秒` : "—"}</dd></div>
+        <div><dt>前回シード</dt><dd>{cell.current_result?.seed ?? "ランダム"}</dd></div>
       </dl>
-      {audioUrl ? <audio className="detail-audio" controls src={audioUrl} /> : <div className="detail-no-audio">No generated audio yet.</div>}
+      {audioUrl ? <audio className="detail-audio" controls src={audioUrl} /> : <div className="detail-no-audio">生成済み音声はまだありません。</div>}
       {cell.error_message && <p className="error-banner">{cell.error_message}</p>}
       <label className="field-label">
-        Seed
-        <input value={seed} inputMode="numeric" placeholder="random" onChange={(event) => setSeed(event.target.value)} />
+        シード
+        <input value={seed} inputMode="numeric" placeholder="ランダム" onChange={(event) => setSeed(event.target.value)} />
       </label>
       <button
         type="button"
@@ -53,7 +53,7 @@ export function CellDetailPane({ projectId, cell, line, reference, busy, onRegen
         disabled={busy || (parsedSeed !== null && !Number.isInteger(parsedSeed))}
         onClick={() => onRegenerate(cell.id, parsedSeed)}
       >
-        Regenerate selected cell
+        選択セルを再生成
       </button>
     </aside>
   );

@@ -144,7 +144,7 @@ export function LineMatrix({
                 <span className="line-number">{String(lineIndex + 1).padStart(2, "0")}</span>
                 <textarea
                   defaultValue={line.text}
-                  aria-label={`Dialogue line ${lineIndex + 1}`}
+                  aria-label={`セリフ ${lineIndex + 1}`}
                   onBlur={(event) => {
                     if (event.target.value.trim() !== line.text) onEditLine(line.id, event.target.value);
                   }}
@@ -163,7 +163,7 @@ export function LineMatrix({
                   >
                     ≡
                   </button>
-                  {onDeleteLine && <button type="button" aria-label={`Delete ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
+                  {onDeleteLine && <button type="button" aria-label={`削除: ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
                 </div>
               </div>
 
@@ -216,7 +216,7 @@ export function LineMatrix({
                       <button
                         type="button"
                         className="regen-button"
-                        aria-label={`Regenerate ${reference.label} / ${line.text}`}
+                        aria-label={`再生成: ${reference.label} / ${line.text}`}
                         disabled={cell.status === "generating"}
                         onClick={(event) => {
                           event.stopPropagation();
