@@ -439,13 +439,14 @@ def create_projects_router(
     def generate_all_legacy(
         project_id: str, payload: GenerateAllRequest
     ) -> ProjectWithGenerationProgress:
-        def apply_change(project: Project) -> None:
+        with get_project_write_lock(project_id):
+            project = load_project(project_id)
             try:
                 generation_service.generate_all(project, only_missing=payload.only_missing)
             except Exception as exc:
+                store.save(project)
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return mutate_project(project_id, apply_change)
+            return save_project(project)
 
     @router.post(
         "/{project_id}/cells/{cell_id}/regenerate",
@@ -456,15 +457,16 @@ def create_projects_router(
         cell_id: str,
         payload: RegenerateCellRequest,
     ) -> ProjectWithGenerationProgress:
-        def apply_change(project: Project) -> None:
+        with get_project_write_lock(project_id):
+            project = load_project(project_id)
             try:
                 generation_service.regenerate_cell(project, cell_id, seed=payload.seed)
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except Exception as exc:
+                store.save(project)
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        return mutate_project(project_id, apply_change)
+            return save_project(project)
 
     @router.post("/{project_id}/export", response_model=ExportResponse)
     def export_project(project_id: str) -> ExportResponse:

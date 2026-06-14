@@ -662,6 +662,61 @@ def test_playback_event_survives_concurrent_project_update(tmp_path: Path) -> No
     assert final_cell["display_status"] == "played"
 
 
+def test_generate_all_legacy_persists_error_state_on_failure(tmp_path: Path) -> None:
+    client = _client(tmp_path, ErrorRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    failed = client.post(
+        f"/api/projects/{project_id}/generate/all",
+        json={"only_missing": True},
+    )
+    project = client.get(f"/api/projects/{project_id}").json()
+
+    assert failed.status_code == 500
+    assert project["cells"][0]["status"] == "error"
+    assert project["cells"][0]["display_status"] == "error"
+    assert project["cells"][0]["error_message"] == "boom"
+
+
+def test_regenerate_legacy_persists_error_state_on_failure(tmp_path: Path) -> None:
+    runtime_manager = FailingRegenerationRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+    original_audio = generated["cells"][0]["current_result"]
+    runtime_manager.allow_failure.set()
+
+    failed = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regenerate",
+        json={"seed": 22},
+    )
+    project = client.get(f"/api/projects/{project_id}").json()
+
+    assert failed.status_code == 500
+    assert project["cells"][0]["status"] == "error"
+    assert project["cells"][0]["display_status"] == "error"
+    assert project["cells"][0]["error_message"] == "boom"
+    assert project["cells"][0]["current_result"] == original_audio
+
+
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:
     client = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
