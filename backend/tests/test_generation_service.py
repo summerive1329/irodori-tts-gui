@@ -26,6 +26,11 @@ class FailingRuntimeManager(FakeRuntimeManager):
         raise RuntimeError("synthesis failed")
 
 
+class FailingPrepareRuntimeManager(FakeRuntimeManager):
+    def prepare_reference(self, settings, source_path: Path, cache_dir: Path) -> PreparedReference:
+        raise RuntimeError("reference preparation failed")
+
+
 def _project() -> Project:
     project = Project.create("demo")
     project.append_lines(["one", "two"])
@@ -85,6 +90,36 @@ def test_failed_regenerate_preserves_the_previous_target_result(tmp_path: Path) 
     assert target.status == "error"
     assert target.current_result is not None
     assert target.current_result.audio_path == "cells/previous.wav"
+
+
+def test_failed_regenerate_preparation_marks_only_target_as_error(tmp_path: Path) -> None:
+    project = _project()
+    target = project.cells[0]
+    target.current_result = CellResult(
+        audio_path="cells/previous.wav",
+        sample_rate=24000,
+        duration_sec=1.0,
+        seed=1,
+    )
+    neighbor = project.cells[1]
+    transitions: list[str] = []
+    service = GenerationService(FailingPrepareRuntimeManager(), tmp_path)
+
+    try:
+        service.regenerate_cell(
+            project,
+            target.id,
+            on_state_change=lambda _project, cell: transitions.append(cell.status),
+        )
+    except RuntimeError:
+        pass
+
+    assert target.status == "error"
+    assert target.error_message == "reference preparation failed"
+    assert target.current_result is not None
+    assert target.current_result.audio_path == "cells/previous.wav"
+    assert neighbor.status == "idle"
+    assert transitions == ["error"]
 
 
 def test_generate_all_reports_cell_state_transitions(tmp_path: Path) -> None:

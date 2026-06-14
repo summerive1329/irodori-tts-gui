@@ -90,7 +90,13 @@ class GenerationService:
     ) -> Project:
         cell = project.get_cell(cell_id)
         reference = next(item for item in project.references if item.id == cell.reference_id)
-        prepared = self._prepare(project, reference)
+        try:
+            prepared = self._prepare(project, reference)
+        except Exception as exc:
+            cell.status = "error"
+            cell.error_message = str(exc)
+            self._notify(project, cell, on_state_change)
+            raise
         self._generate_cell(
             project,
             cell,
