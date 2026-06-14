@@ -101,8 +101,6 @@ export function App() {
       setJob(started);
       if (started.status === "running") {
         setTrackedJobIds((current) => [...new Set([...current, started.id])]);
-      } else {
-        setTrackedJobIds([]);
       }
       if (started.status !== "running" && projectId) {
         setProject(await api.getProject(projectId));
