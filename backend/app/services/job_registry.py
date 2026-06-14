@@ -59,6 +59,14 @@ class JobRegistry:
         with self._lock:
             return self._get_mutable(job_id).model_copy(deep=True)
 
+    def list_running_for_project(self, project_id: str) -> list[JobSnapshot]:
+        with self._lock:
+            return [
+                job.model_copy(deep=True)
+                for job in self._jobs.values()
+                if job.project_id == project_id and job.status == "running"
+            ]
+
     def mark_generating(self, job_id: str, cell_id: str) -> JobSnapshot:
         with self._lock:
             job = self._get_mutable(job_id)

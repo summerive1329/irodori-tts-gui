@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Lock, RLock, Thread
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
+from pydantic import BaseModel, Field
 
 from app.models.project import Project, ProjectSummary
 from app.schemas.api import (
@@ -28,6 +29,16 @@ from app.services.project_store import ProjectStore
 from app.services.reference_service import ReferenceService
 
 
+class GenerationProgress(BaseModel):
+    running_job_count: int = 0
+    running_job_kinds: list[str] = Field(default_factory=list)
+    has_running_jobs: bool = False
+
+
+class ProjectWithGenerationProgress(Project):
+    generation_progress: GenerationProgress = Field(default_factory=GenerationProgress)
+
+
 def create_projects_router(
     store: ProjectStore,
     line_import_service: LineImportService,
@@ -40,15 +51,32 @@ def create_projects_router(
     project_job_locks: dict[str, Lock] = {}
     project_job_locks_guard = RLock()
 
-    def load_project(project_id: str) -> Project:
+    def attach_generation_progress(project: Project) -> ProjectWithGenerationProgress:
+        running_jobs = job_registry.list_running_for_project(project.id)
+        return ProjectWithGenerationProgress(
+            **project.model_dump(exclude={"generation_progress"}),
+            generation_progress=GenerationProgress(
+                running_job_count=len(running_jobs),
+                running_job_kinds=[job.kind for job in running_jobs],
+                has_running_jobs=bool(running_jobs),
+            ),
+        )
+
+    def to_stored_project(project: Project) -> Project:
+        if isinstance(project, ProjectWithGenerationProgress):
+            return Project.model_validate(project.model_dump(exclude={"generation_progress"}))
+        return project
+
+    def load_project(project_id: str) -> ProjectWithGenerationProgress:
         try:
-            return store.load(project_id)
+            project = store.load(project_id)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return attach_generation_progress(project)
 
-    def save_project(project: Project) -> Project:
-        store.save(project)
-        return project
+    def save_project(project: Project) -> ProjectWithGenerationProgress:
+        store.save(to_stored_project(project))
+        return attach_generation_progress(project)
 
     def remove_cell_audio(project: Project, cell_ids: set[str]) -> None:
         project_dir = store.project_dir(project.id)
@@ -76,20 +104,26 @@ def create_projects_router(
     def list_projects() -> list[ProjectSummary]:
         return store.list_projects()
 
-    @router.post("", response_model=Project, status_code=status.HTTP_201_CREATED)
-    def create_project(payload: CreateProjectRequest) -> Project:
+    @router.post(
+        "",
+        response_model=ProjectWithGenerationProgress,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_project(payload: CreateProjectRequest) -> ProjectWithGenerationProgress:
         try:
             project = Project.create(payload.name)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.get("/{project_id}", response_model=Project)
-    def get_project(project_id: str) -> Project:
+    @router.get("/{project_id}", response_model=ProjectWithGenerationProgress)
+    def get_project(project_id: str) -> ProjectWithGenerationProgress:
         return load_project(project_id)
 
-    @router.patch("/{project_id}", response_model=Project)
-    def update_project(project_id: str, payload: UpdateProjectRequest) -> Project:
+    @router.patch("/{project_id}", response_model=ProjectWithGenerationProgress)
+    def update_project(
+        project_id: str, payload: UpdateProjectRequest
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         changes = payload.model_dump(exclude_none=True)
         if "name" in changes:
@@ -100,14 +134,14 @@ def create_projects_router(
             setattr(project, field, value)
         return save_project(project)
 
-    @router.post("/{project_id}/lines", response_model=Project)
-    def append_lines(project_id: str, payload: AppendLinesRequest) -> Project:
+    @router.post("/{project_id}/lines", response_model=ProjectWithGenerationProgress)
+    def append_lines(project_id: str, payload: AppendLinesRequest) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         project.append_lines(payload.texts)
         return save_project(project)
 
-    @router.post("/{project_id}/lines/insert", response_model=Project)
-    def insert_line(project_id: str, payload: InsertLineRequest) -> Project:
+    @router.post("/{project_id}/lines/insert", response_model=ProjectWithGenerationProgress)
+    def insert_line(project_id: str, payload: InsertLineRequest) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             project.insert_line(payload.index, payload.text)
@@ -126,11 +160,11 @@ def create_projects_router(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    @router.post("/{project_id}/lines/import", response_model=Project)
+    @router.post("/{project_id}/lines/import", response_model=ProjectWithGenerationProgress)
     async def import_lines(
         project_id: str,
         files: list[UploadFile] = File(...),
-    ) -> Project:
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             for upload in files:
@@ -143,8 +177,10 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.patch("/{project_id}/lines/{line_id}", response_model=Project)
-    def update_line(project_id: str, line_id: str, payload: UpdateLineRequest) -> Project:
+    @router.patch("/{project_id}/lines/{line_id}", response_model=ProjectWithGenerationProgress)
+    def update_line(
+        project_id: str, line_id: str, payload: UpdateLineRequest
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             project.update_line(line_id, payload.text)
@@ -154,8 +190,8 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.delete("/{project_id}/lines/{line_id}", response_model=Project)
-    def delete_line(project_id: str, line_id: str) -> Project:
+    @router.delete("/{project_id}/lines/{line_id}", response_model=ProjectWithGenerationProgress)
+    def delete_line(project_id: str, line_id: str) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         cell_ids = {cell.id for cell in project.cells if cell.line_id == line_id}
         remove_cell_audio(project, cell_ids)
@@ -165,8 +201,10 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.put("/{project_id}/lines/order", response_model=Project)
-    def reorder_lines(project_id: str, payload: ReorderLinesRequest) -> Project:
+    @router.put("/{project_id}/lines/order", response_model=ProjectWithGenerationProgress)
+    def reorder_lines(
+        project_id: str, payload: ReorderLinesRequest
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             project.reorder_lines(payload.line_ids)
@@ -174,12 +212,12 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.post("/{project_id}/references", response_model=Project)
+    @router.post("/{project_id}/references", response_model=ProjectWithGenerationProgress)
     async def add_reference(
         project_id: str,
         label: str = Form(...),
         file: UploadFile = File(...),
-    ) -> Project:
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             reference_service.add_reference(
@@ -192,8 +230,11 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.delete("/{project_id}/references/{reference_id}", response_model=Project)
-    def delete_reference(project_id: str, reference_id: str) -> Project:
+    @router.delete(
+        "/{project_id}/references/{reference_id}",
+        response_model=ProjectWithGenerationProgress,
+    )
+    def delete_reference(project_id: str, reference_id: str) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         cell_ids = {cell.id for cell in project.cells if cell.reference_id == reference_id}
         remove_cell_audio(project, cell_ids)
@@ -285,11 +326,11 @@ def create_projects_router(
         start_worker(run)
         return job
 
-    @router.post("/{project_id}/playlist/items", response_model=Project)
+    @router.post("/{project_id}/playlist/items", response_model=ProjectWithGenerationProgress)
     def append_playlist_item(
         project_id: str,
         payload: PlaylistAppendRequest,
-    ) -> Project:
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             project.append_playlist_item(payload.cell_id)
@@ -299,8 +340,13 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.post("/{project_id}/playlist/references/{reference_id}", response_model=Project)
-    def append_reference_column(project_id: str, reference_id: str) -> Project:
+    @router.post(
+        "/{project_id}/playlist/references/{reference_id}",
+        response_model=ProjectWithGenerationProgress,
+    )
+    def append_reference_column(
+        project_id: str, reference_id: str
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         if not any(reference.id == reference_id for reference in project.references):
             raise HTTPException(status_code=404, detail=f"Reference not found: {reference_id}")
@@ -319,8 +365,13 @@ def create_projects_router(
             project.append_playlist_item(cell.id)
         return save_project(project)
 
-    @router.delete("/{project_id}/playlist/items/{playlist_item_id}", response_model=Project)
-    def remove_playlist_item(project_id: str, playlist_item_id: str) -> Project:
+    @router.delete(
+        "/{project_id}/playlist/items/{playlist_item_id}",
+        response_model=ProjectWithGenerationProgress,
+    )
+    def remove_playlist_item(
+        project_id: str, playlist_item_id: str
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             project.remove_playlist_item(playlist_item_id)
@@ -328,11 +379,11 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.put("/{project_id}/playlist/order", response_model=Project)
+    @router.put("/{project_id}/playlist/order", response_model=ProjectWithGenerationProgress)
     def reorder_playlist(
         project_id: str,
         payload: PlaylistReorderRequest,
-    ) -> Project:
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             project.reorder_playlist(payload.playlist_item_ids)
@@ -340,8 +391,10 @@ def create_projects_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.post("/{project_id}/generate/all", response_model=Project)
-    def generate_all_legacy(project_id: str, payload: GenerateAllRequest) -> Project:
+    @router.post("/{project_id}/generate/all", response_model=ProjectWithGenerationProgress)
+    def generate_all_legacy(
+        project_id: str, payload: GenerateAllRequest
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             generation_service.generate_all(project, only_missing=payload.only_missing)
@@ -350,12 +403,15 @@ def create_projects_router(
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         return save_project(project)
 
-    @router.post("/{project_id}/cells/{cell_id}/regenerate", response_model=Project)
+    @router.post(
+        "/{project_id}/cells/{cell_id}/regenerate",
+        response_model=ProjectWithGenerationProgress,
+    )
     def regenerate_cell_legacy(
         project_id: str,
         cell_id: str,
         payload: RegenerateCellRequest,
-    ) -> Project:
+    ) -> ProjectWithGenerationProgress:
         project = load_project(project_id)
         try:
             generation_service.regenerate_cell(project, cell_id, seed=payload.seed)

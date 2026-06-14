@@ -188,6 +188,63 @@ def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: 
     assert final_cells[project["cells"][1]["id"]]["current_result"]["seed"] == 11
 
 
+def test_project_payload_includes_running_job_count_for_generate_and_regenerate(tmp_path: Path) -> None:
+    runtime_manager = BlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    generated = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": False},
+    )
+    assert generated.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    project = client.get(f"/api/projects/{project_id}").json()
+    assert project["generation_progress"]["running_job_count"] == 1
+    regen = client.post(
+        f"/api/projects/{project_id}/cells/{project['cells'][1]['id']}/regeneration-jobs",
+        json={"seed": 11},
+    )
+    assert regen.status_code == 202
+
+    running = client.get(f"/api/projects/{project_id}").json()
+    assert running["generation_progress"]["running_job_count"] == 2
+    assert sorted(running["generation_progress"]["running_job_kinds"]) == [
+        "generate_all",
+        "regenerate_cell",
+    ]
+
+
+def test_project_payload_excludes_completed_jobs_from_running_count(tmp_path: Path) -> None:
+    runtime_manager = FakeRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+
+    final_project = client.get(f"/api/projects/{project_id}").json()
+    assert final_project["generation_progress"]["running_job_count"] == 0
+    assert final_project["generation_progress"]["running_job_kinds"] == []
+    assert final_project["generation_progress"]["has_running_jobs"] is False
+
+
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:
     client = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
