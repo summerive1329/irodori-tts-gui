@@ -28,6 +28,7 @@ function props() {
   return {
     project,
     busy: false,
+    job: null,
     selectedCellId: null,
     exportUrl: null,
     onBack: vi.fn(),
@@ -42,8 +43,12 @@ function props() {
     onReorder: vi.fn(),
     onGenerate: vi.fn(),
     onRegenerate: vi.fn(),
-    onSelectForExport: vi.fn(),
+    onAppendToPlaylist: vi.fn(),
+    onAppendReferenceColumn: vi.fn(),
+    onRemovePlaylistItem: vi.fn(),
+    onReorderPlaylist: vi.fn(),
     onExport: vi.fn(),
+    onExportText: vi.fn(),
     onSaveSettings: vi.fn(),
   };
 }
@@ -67,12 +72,12 @@ describe("ProjectEditor", () => {
       ...project,
       lines: [{ id: "line-1", text: "hello", order_index: 0 }],
       references: [{ id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 }],
-      cells: [{ id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "idle", error_message: null, current_result: null, selected_for_export: false }],
+      cells: [{ id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "idle", error_message: null, current_result: null }],
       export_playlist: [],
     };
     render(<ProjectEditor {...editorProps} />);
 
-    await user.click(screen.getByRole("button", { name: "Generate missing" }));
+    await user.click(screen.getByRole("button", { name: "未生成を実行" }));
 
     expect(editorProps.onGenerate).toHaveBeenCalledWith(true);
   });

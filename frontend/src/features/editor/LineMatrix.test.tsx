@@ -23,7 +23,6 @@ const cells: CellItem[] = references.map((reference, index) => ({
     seed: index,
     duration_sec: 1,
   },
-  selected_for_export: false,
 }));
 
 describe("LineMatrix", () => {
@@ -39,7 +38,8 @@ describe("LineMatrix", () => {
         selectedCellId={null}
         onSelectCell={() => undefined}
         onRegenerate={onRegenerate}
-        onSelectForExport={() => undefined}
+        onAppendToPlaylist={() => undefined}
+        onAppendReferenceColumn={() => undefined}
         onEditLine={() => undefined}
         onReorder={() => undefined}
       />,
@@ -51,9 +51,9 @@ describe("LineMatrix", () => {
     expect(onRegenerate).toHaveBeenCalledWith("cell-1");
   });
 
-  it("selects one exact cell for export", async () => {
+  it("adds one exact cell to the export playlist", async () => {
     const user = userEvent.setup();
-    const onSelectForExport = vi.fn();
+    const onAppendToPlaylist = vi.fn();
     render(
       <LineMatrix
         projectId="project-1"
@@ -63,14 +63,39 @@ describe("LineMatrix", () => {
         selectedCellId={null}
         onSelectCell={() => undefined}
         onRegenerate={() => undefined}
-        onSelectForExport={onSelectForExport}
+        onAppendToPlaylist={onAppendToPlaylist}
+        onAppendReferenceColumn={() => undefined}
         onEditLine={() => undefined}
         onReorder={() => undefined}
       />,
     );
 
-    await user.click(screen.getByRole("radio", { name: "Use lize for hello" }));
+    await user.click(screen.getByRole("button", { name: "リストに追加: lize / hello" }));
 
-    expect(onSelectForExport).toHaveBeenCalledWith("cell-2");
+    expect(onAppendToPlaylist).toHaveBeenCalledWith("cell-2");
+  });
+
+  it("adds a whole reference column from the header", async () => {
+    const user = userEvent.setup();
+    const onAppendReferenceColumn = vi.fn();
+    render(
+      <LineMatrix
+        projectId="project-1"
+        lines={lines}
+        references={references}
+        cells={cells}
+        selectedCellId={null}
+        onSelectCell={() => undefined}
+        onRegenerate={() => undefined}
+        onAppendToPlaylist={() => undefined}
+        onAppendReferenceColumn={onAppendReferenceColumn}
+        onEditLine={() => undefined}
+        onReorder={() => undefined}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "toruを上から追加" }));
+
+    expect(onAppendReferenceColumn).toHaveBeenCalledWith("ref-1");
   });
 });

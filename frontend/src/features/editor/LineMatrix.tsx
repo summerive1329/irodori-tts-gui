@@ -8,7 +8,8 @@ type Props = {
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
   onRegenerate: (cellId: string) => void;
-  onSelectForExport: (cellId: string) => void;
+  onAppendToPlaylist: (cellId: string) => void;
+  onAppendReferenceColumn: (referenceId: string) => void;
   onEditLine: (lineId: string, text: string) => void;
   onDeleteLine?: (lineId: string) => void;
   onReorder: (lineIds: string[]) => void;
@@ -30,7 +31,8 @@ export function LineMatrix({
   selectedCellId,
   onSelectCell,
   onRegenerate,
-  onSelectForExport,
+  onAppendToPlaylist,
+  onAppendReferenceColumn,
   onEditLine,
   onDeleteLine,
   onReorder,
@@ -67,6 +69,14 @@ export function LineMatrix({
           <div className="matrix-reference-header" key={reference.id}>
             <strong>{reference.label}</strong>
             <small>{reference.source_filename}</small>
+            <button
+              type="button"
+              className="column-add-button"
+              aria-label={`${reference.label}を上から追加`}
+              onClick={() => onAppendReferenceColumn(reference.id)}
+            >
+              上から追加
+            </button>
           </div>
         ))}
         {references.length === 0 && <div className="matrix-reference-header is-empty">Add a reference to create result cells</div>}
@@ -107,17 +117,18 @@ export function LineMatrix({
                     <div className="cell-topline">
                       <span className="status-dot" />
                       <span>{statusLabel[cell.status]}</span>
-                      <label className="pick-result" onClick={(event) => event.stopPropagation()}>
-                        <input
-                          type="radio"
-                          name={`export-${line.id}`}
-                          checked={cell.selected_for_export}
-                          disabled={!cell.current_result}
-                          aria-label={`Use ${reference.label} for ${line.text}`}
-                          onChange={() => onSelectForExport(cell.id)}
-                        />
-                        Use
-                      </label>
+                      <button
+                        type="button"
+                        className="playlist-add-button"
+                        disabled={!cell.current_result}
+                        aria-label={`リストに追加: ${reference.label} / ${line.text}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onAppendToPlaylist(cell.id);
+                        }}
+                      >
+                        ＋ リスト
+                      </button>
                     </div>
                     {audioUrl ? <audio controls preload="none" src={audioUrl} /> : <div className="audio-placeholder">No take yet</div>}
                     {cell.error_message && <p className="cell-error">{cell.error_message}</p>}

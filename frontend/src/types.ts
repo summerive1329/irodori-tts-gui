@@ -29,7 +29,6 @@ export type CellItem = {
   status: CellStatus;
   error_message: string | null;
   current_result: CellResult | null;
-  selected_for_export?: boolean;
 };
 
 export type ExportPlaylistItem = {
@@ -72,7 +71,6 @@ export type Project = {
   lines: LineItem[];
   cells: CellItem[];
   export_playlist: ExportPlaylistItem[];
-  export_order?: string[];
 };
 
 export type ProjectSummary = Pick<Project, "id" | "name" | "updated_at">;

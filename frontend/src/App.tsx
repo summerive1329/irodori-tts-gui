@@ -130,6 +130,7 @@ export function App() {
         key={project.id}
         project={project}
         busy={busy || job?.status === "running"}
+        job={job}
         selectedCellId={selectedCellId}
         exportUrl={exportUrl}
         onBack={() => navigate("/")}
@@ -159,7 +160,10 @@ export function App() {
         onReorder={(lineIds) => void runProjectAction(() => api.reorderLines(project.id, lineIds))}
         onGenerate={(onlyMissing) => void startJob(() => api.startGenerationJob(project.id, onlyMissing))}
         onRegenerate={(cellId, seed) => void startJob(() => api.startRegenerationJob(project.id, cellId, seed))}
-        onSelectForExport={() => undefined}
+        onAppendToPlaylist={(cellId) => void runProjectAction(() => api.appendPlaylistItem(project.id, cellId))}
+        onAppendReferenceColumn={(referenceId) => void runProjectAction(() => api.appendReferenceColumn(project.id, referenceId))}
+        onRemovePlaylistItem={(playlistItemId) => void runProjectAction(() => api.removePlaylistItem(project.id, playlistItemId))}
+        onReorderPlaylist={(playlistItemIds) => void runProjectAction(() => api.reorderPlaylist(project.id, playlistItemIds))}
         onExport={async () => {
           setBusy(true);
           setError(null);
@@ -172,6 +176,7 @@ export function App() {
             setBusy(false);
           }
         }}
+        onExportText={() => api.downloadLinesText(project.id)}
         onSaveSettings={(settings) => void runProjectAction(() => api.updateProject(project.id, settings))}
       />
       {error && <button type="button" className="global-error" onClick={() => setError(null)}>{error}</button>}

@@ -103,6 +103,32 @@ export function startRegenerationJob(
   return request(`/api/projects/${projectId}/cells/${cellId}/regeneration-jobs`, json("POST", { seed }));
 }
 
+export function appendPlaylistItem(projectId: string, cellId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/playlist/items`, json("POST", { cell_id: cellId }));
+}
+
+export function appendReferenceColumn(projectId: string, referenceId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/playlist/references/${referenceId}`, { method: "POST" });
+}
+
+export function removePlaylistItem(projectId: string, playlistItemId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/playlist/items/${playlistItemId}`, { method: "DELETE" });
+}
+
+export function reorderPlaylist(projectId: string, playlistItemIds: string[]): Promise<Project> {
+  return request(
+    `/api/projects/${projectId}/playlist/order`,
+    json("PUT", { playlist_item_ids: playlistItemIds }),
+  );
+}
+
+export function downloadLinesText(projectId: string): void {
+  const link = document.createElement("a");
+  link.href = `/api/projects/${projectId}/lines.txt`;
+  link.download = "";
+  link.click();
+}
+
 export function exportProject(projectId: string): Promise<{ media_url: string }> {
   return request(`/api/projects/${projectId}/export`, { method: "POST" });
 }

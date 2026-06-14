@@ -16,7 +16,6 @@ describe("CellDetailPane", () => {
       status: "ready",
       error_message: null,
       current_result: null,
-      selected_for_export: false,
     };
     const line: LineItem = { id: "line-1", text: "hello", order_index: 0 };
     const reference: ReferenceItem = { id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 };

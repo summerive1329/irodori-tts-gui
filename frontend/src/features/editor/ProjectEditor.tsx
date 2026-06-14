@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 
-import type { Project } from "../../types";
+import type { GenerationJob, Project } from "../../types";
 import { CellDetailPane } from "./CellDetailPane";
+import { ExportPlaylist } from "./ExportPlaylist";
+import { GenerationConsole } from "./GenerationConsole";
 import { LineDropzone } from "./LineDropzone";
 import { LineMatrix } from "./LineMatrix";
 import { ReferenceSidebar } from "./ReferenceSidebar";
@@ -22,6 +24,7 @@ type ProjectSettings = Pick<
 type Props = {
   project: Project;
   busy: boolean;
+  job: GenerationJob | null;
   selectedCellId: string | null;
   exportUrl: string | null;
   onBack: () => void;
@@ -36,14 +39,19 @@ type Props = {
   onReorder: (lineIds: string[]) => void;
   onGenerate: (onlyMissing: boolean) => void;
   onRegenerate: (cellId: string, seed: number | null) => void;
-  onSelectForExport: (cellId: string) => void;
+  onAppendToPlaylist: (cellId: string) => void;
+  onAppendReferenceColumn: (referenceId: string) => void;
+  onRemovePlaylistItem: (playlistItemId: string) => void;
+  onReorderPlaylist: (playlistItemIds: string[]) => void;
   onExport: () => void;
+  onExportText: () => void;
   onSaveSettings: (settings: ProjectSettings) => void;
 };
 
 export function ProjectEditor({
   project,
   busy,
+  job,
   selectedCellId,
   exportUrl,
   onBack,
@@ -58,11 +66,16 @@ export function ProjectEditor({
   onReorder,
   onGenerate,
   onRegenerate,
-  onSelectForExport,
+  onAppendToPlaylist,
+  onAppendReferenceColumn,
+  onRemovePlaylistItem,
+  onReorderPlaylist,
   onExport,
+  onExportText,
   onSaveSettings,
 }: Props) {
   const [manualText, setManualText] = useState("");
+  const [autoPlay, setAutoPlay] = useState(false);
   const [settings, setSettings] = useState<ProjectSettings>(() => settingsFrom(project));
 
   useEffect(() => setSettings(settingsFrom(project)), [project]);
@@ -70,9 +83,7 @@ export function ProjectEditor({
   const selectedCell = project.cells.find((cell) => cell.id === selectedCellId) ?? null;
   const selectedLine = selectedCell ? project.lines.find((line) => line.id === selectedCell.line_id) ?? null : null;
   const selectedReference = selectedCell ? project.references.find((reference) => reference.id === selectedCell.reference_id) ?? null : null;
-  const canExport = project.lines.length > 0 && project.lines.every((line) =>
-    project.cells.some((cell) => cell.line_id === line.id && cell.selected_for_export && cell.current_result),
-  );
+  const canGenerate = project.lines.length > 0 && project.references.length > 0;
 
   return (
     <div className="studio-shell">
@@ -120,10 +131,10 @@ export function ProjectEditor({
           <div className="editor-toolbar">
             <LineDropzone busy={busy} onFilesSelected={onImportFiles} />
             <details className="manual-entry">
-              <summary>Paste dialogue</summary>
+              <summary>セリフを貼り付け</summary>
               <label>
                 Manual dialogue
-                <textarea value={manualText} placeholder="One line per utterance" onChange={(event) => setManualText(event.target.value)} />
+                <textarea value={manualText} placeholder="1行につき1セリフ" onChange={(event) => setManualText(event.target.value)} />
               </label>
               <button
                 className="button button-primary"
@@ -138,13 +149,18 @@ export function ProjectEditor({
                 Append lines
               </button>
             </details>
-            <div className="generation-actions">
-              <button type="button" className="button button-primary" disabled={busy || !project.lines.length || !project.references.length} onClick={() => onGenerate(true)}>Generate missing</button>
-              <button type="button" className="button button-quiet" disabled={busy || !project.lines.length || !project.references.length} onClick={() => onGenerate(false)}>Regenerate all</button>
-            </div>
           </div>
 
-          {busy && <div className="work-indicator"><span /> Working. The loaded model stays in memory for the next take.</div>}
+          <GenerationConsole
+            job={job}
+            busy={busy}
+            canGenerate={canGenerate}
+            autoPlay={autoPlay}
+            onGenerateMissing={() => onGenerate(true)}
+            onGenerateAll={() => onGenerate(false)}
+            onToggleAutoPlay={setAutoPlay}
+          />
+
           <LineMatrix
             projectId={project.id}
             lines={project.lines}
@@ -153,7 +169,8 @@ export function ProjectEditor({
             selectedCellId={selectedCellId}
             onSelectCell={onSelectCell}
             onRegenerate={(cellId) => onRegenerate(cellId, null)}
-            onSelectForExport={onSelectForExport}
+            onAppendToPlaylist={onAppendToPlaylist}
+            onAppendReferenceColumn={onAppendReferenceColumn}
             onEditLine={onEditLine}
             onDeleteLine={onDeleteLine}
             onReorder={onReorder}
@@ -169,13 +186,15 @@ export function ProjectEditor({
             busy={busy}
             onRegenerate={onRegenerate}
           />
-          <section className="export-panel">
-            <span className="eyebrow">FINAL ASSEMBLY</span>
-            <h2>Join selected takes</h2>
-            <p>Select exactly one result in every dialogue row.</p>
-            <button type="button" className="button button-accent" disabled={busy || !canExport} onClick={onExport}>Export joined WAV</button>
-            {exportUrl && <a className="export-link" href={exportUrl} download>Download latest export ↗</a>}
-          </section>
+          <ExportPlaylist
+            items={project.export_playlist}
+            busy={busy}
+            exportUrl={exportUrl}
+            onRemove={onRemovePlaylistItem}
+            onReorder={onReorderPlaylist}
+            onExport={onExport}
+            onExportText={onExportText}
+          />
         </div>
       </div>
     </div>
@@ -195,4 +214,3 @@ function settingsFrom(project: Project): ProjectSettings {
     cfg_scale_speaker: project.cfg_scale_speaker,
   };
 }
-
