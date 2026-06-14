@@ -58,6 +58,10 @@ export function appendLines(projectId: string, texts: string[]): Promise<Project
   return request(`/api/projects/${projectId}/lines`, json("POST", { texts }));
 }
 
+export function insertLine(projectId: string, index: number, text: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/lines/insert`, json("POST", { index, text }));
+}
+
 export function importLines(projectId: string, files: File[]): Promise<Project> {
   const body = new FormData();
   for (const file of files) body.append("files", file);

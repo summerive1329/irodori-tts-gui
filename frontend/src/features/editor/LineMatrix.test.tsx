@@ -38,6 +38,7 @@ function matrixProps() {
     onAppendToPlaylist: vi.fn(),
     onAppendReferenceColumn: vi.fn(),
     onEditLine: vi.fn(),
+    onInsertLine: vi.fn(),
     onReorder: vi.fn(),
   };
 }
@@ -116,5 +117,23 @@ describe("LineMatrix", () => {
     fireEvent.ended(screen.getByLabelText("音声: toru / one"));
 
     expect(play).toHaveBeenCalledOnce();
+  });
+
+  it("drags a line to a distant insertion slot", () => {
+    const props = matrixProps();
+    props.lines = [
+      { id: "line-1", text: "one", order_index: 0 },
+      { id: "line-2", text: "two", order_index: 1 },
+      { id: "line-3", text: "three", order_index: 2 },
+    ];
+    props.references = [];
+    props.cells = [];
+    render(<LineMatrix {...props} />);
+
+    fireEvent.dragStart(screen.getByRole("button", { name: "並べ替え: one" }));
+    fireEvent.dragOver(screen.getByLabelText("3番目へ移動"));
+    fireEvent.drop(screen.getByLabelText("3番目へ移動"));
+
+    expect(props.onReorder).toHaveBeenCalledWith(["line-2", "line-3", "line-1"]);
   });
 });

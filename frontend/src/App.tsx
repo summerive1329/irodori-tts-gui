@@ -156,6 +156,7 @@ export function App() {
         }}
         onDeleteReference={(referenceId) => void runProjectAction(() => api.deleteReference(project.id, referenceId))}
         onEditLine={(lineId, text) => void runProjectAction(() => api.updateLine(project.id, lineId, text))}
+        onInsertLine={(index, text) => void runProjectAction(() => api.insertLine(project.id, index, text))}
         onDeleteLine={(lineId) => void runProjectAction(() => api.deleteLine(project.id, lineId))}
         onReorder={(lineIds) => void runProjectAction(() => api.reorderLines(project.id, lineIds))}
         onGenerate={(onlyMissing) => void startJob(() => api.startGenerationJob(project.id, onlyMissing))}

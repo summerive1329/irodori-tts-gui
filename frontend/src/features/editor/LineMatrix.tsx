@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 
 import type { CellItem, LineItem, ReferenceItem } from "../../types";
 
@@ -14,6 +14,7 @@ type Props = {
   onAppendToPlaylist: (cellId: string) => void;
   onAppendReferenceColumn: (referenceId: string) => void;
   onEditLine: (lineId: string, text: string) => void;
+  onInsertLine: (index: number, text: string) => void;
   onDeleteLine?: (lineId: string) => void;
   onReorder: (lineIds: string[]) => void;
 };
@@ -38,10 +39,14 @@ export function LineMatrix({
   onAppendToPlaylist,
   onAppendReferenceColumn,
   onEditLine,
+  onInsertLine,
   onDeleteLine,
   onReorder,
 }: Props) {
   const [playedCellIds, setPlayedCellIds] = useState<string[]>([]);
+  const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
+  const [insertionText, setInsertionText] = useState("");
+  const [draggedLineId, setDraggedLineId] = useState<string | null>(null);
   const audioElements = useRef(new Map<string, HTMLAudioElement>());
   const orderedLines = [...lines].sort((a, b) => a.order_index - b.order_index);
 
@@ -59,21 +64,58 @@ export function LineMatrix({
     if (next) void audioElements.current.get(next.id)?.play();
   }
 
-  function move(lineId: string, direction: -1 | 1) {
+  function dropLineAt(index: number) {
+    if (!draggedLineId) return;
     const ids = orderedLines.map((line) => line.id);
-    const current = ids.indexOf(lineId);
-    const target = current + direction;
-    if (target < 0 || target >= ids.length) return;
-    [ids[current], ids[target]] = [ids[target], ids[current]];
-    onReorder(ids);
+    const sourceIndex = ids.indexOf(draggedLineId);
+    const reordered = ids.filter((id) => id !== draggedLineId);
+    const adjustedIndex = sourceIndex < index ? index - 1 : index;
+    reordered.splice(Math.max(0, Math.min(adjustedIndex, reordered.length)), 0, draggedLineId);
+    setDraggedLineId(null);
+    if (reordered.some((id, itemIndex) => id !== ids[itemIndex])) onReorder(reordered);
+  }
+
+  function insertionSlot(index: number, label: string) {
+    return (
+      <div
+        className={`line-insert-slot${draggedLineId ? " is-drag-target" : ""}`}
+        aria-label={`${index}番目へ移動`}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          dropLineAt(index);
+        }}
+      >
+        {insertionIndex === index ? (
+          <form
+            className="line-insert-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const text = insertionText.trim();
+              if (!text) return;
+              onInsertLine(index, text);
+              setInsertionText("");
+              setInsertionIndex(null);
+            }}
+          >
+            <label>追加するセリフ<input autoFocus value={insertionText} onChange={(event) => setInsertionText(event.target.value)} /></label>
+            <button type="submit" className="button button-primary" disabled={!insertionText.trim()}>挿入</button>
+            <button type="button" className="button button-quiet" onClick={() => setInsertionIndex(null)}>閉じる</button>
+          </form>
+        ) : (
+          <button type="button" className="line-insert-button" onClick={() => setInsertionIndex(index)}>＋ {label}</button>
+        )}
+        {draggedLineId && <span className="drop-hint">ここへ移動</span>}
+      </div>
+    );
   }
 
   if (orderedLines.length === 0) {
     return (
       <div className="empty-state">
         <span>01</span>
-        <h2>Add your first dialogue lines</h2>
-        <p>Paste text manually or drop a text file above.</p>
+        <h2>最初のセリフを追加</h2>
+        <p>上の入力欄へ貼り付けるか、テキストファイルをドロップしてください。</p>
       </div>
     );
   }
@@ -83,107 +125,113 @@ export function LineMatrix({
       <div className="matrix" style={{ "--reference-count": Math.max(references.length, 1) } as React.CSSProperties}>
         <div className="matrix-corner">
           <span className="eyebrow">DIALOGUE</span>
-          <span>{orderedLines.length} lines</span>
+          <span>{orderedLines.length} セリフ</span>
         </div>
         {references.map((reference) => (
           <div className="matrix-reference-header" key={reference.id}>
             <strong>{reference.label}</strong>
             <small>{reference.source_filename}</small>
-            <button
-              type="button"
-              className="column-add-button"
-              aria-label={`${reference.label}を上から追加`}
-              onClick={() => onAppendReferenceColumn(reference.id)}
-            >
-              上から追加
-            </button>
+            <button type="button" className="column-add-button" aria-label={`${reference.label}を上から追加`} onClick={() => onAppendReferenceColumn(reference.id)}>上から追加</button>
           </div>
         ))}
-        {references.length === 0 && <div className="matrix-reference-header is-empty">Add a reference to create result cells</div>}
+        {references.length === 0 && <div className="matrix-reference-header is-empty">参照音声を追加すると生成セルが表示されます</div>}
 
+        {insertionSlot(0, "先頭に追加")}
         {orderedLines.map((line, lineIndex) => (
-          <div className="matrix-row" key={line.id}>
-            <div className="line-editor">
-              <span className="line-number">{String(lineIndex + 1).padStart(2, "0")}</span>
-              <textarea
-                defaultValue={line.text}
-                aria-label={`Dialogue line ${lineIndex + 1}`}
-                onBlur={(event) => {
-                  if (event.target.value.trim() !== line.text) {
-                    onEditLine(line.id, event.target.value);
-                  }
-                }}
-              />
-              <div className="line-order-controls">
-                <button type="button" aria-label={`Move ${line.text} up`} disabled={lineIndex === 0} onClick={() => move(line.id, -1)}>↑</button>
-                <button type="button" aria-label={`Move ${line.text} down`} disabled={lineIndex === orderedLines.length - 1} onClick={() => move(line.id, 1)}>↓</button>
-                {onDeleteLine && <button type="button" aria-label={`Delete ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
-              </div>
-            </div>
-
-            <div className="line-cells">
-              {references.map((reference) => {
-                const cell = cells.find((item) => item.line_id === line.id && item.reference_id === reference.id);
-                if (!cell) return <div className="result-cell is-missing" key={reference.id}>Missing cell</div>;
-                const audioUrl = cell.current_result
-                  ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
-                  : null;
-                return (
-                  <article
-                    className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${playedCellIds.includes(cell.id) ? " is-played" : ""}`}
-                    key={cell.id}
-                    onClick={() => onSelectCell(cell.id)}
+          <Fragment key={line.id}>
+            <div className="matrix-row">
+              <div className="line-editor">
+                <span className="line-number">{String(lineIndex + 1).padStart(2, "0")}</span>
+                <textarea
+                  defaultValue={line.text}
+                  aria-label={`Dialogue line ${lineIndex + 1}`}
+                  onBlur={(event) => {
+                    if (event.target.value.trim() !== line.text) onEditLine(line.id, event.target.value);
+                  }}
+                />
+                <div className="line-order-controls">
+                  <button
+                    type="button"
+                    className="drag-handle"
+                    draggable
+                    aria-label={`並べ替え: ${line.text}`}
+                    onDragStart={(event) => {
+                      setDraggedLineId(line.id);
+                      event.dataTransfer?.setData("text/plain", line.id);
+                    }}
+                    onDragEnd={() => setDraggedLineId(null)}
                   >
-                    <div className="cell-topline">
-                      <span className="status-dot" />
-                      <span>{statusLabel[cell.status]}</span>
+                    ≡
+                  </button>
+                  {onDeleteLine && <button type="button" aria-label={`Delete ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
+                </div>
+              </div>
+
+              <div className="line-cells">
+                {references.map((reference) => {
+                  const cell = cells.find((item) => item.line_id === line.id && item.reference_id === reference.id);
+                  if (!cell) return <div className="result-cell is-missing" key={reference.id}>セルがありません</div>;
+                  const audioUrl = cell.current_result
+                    ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
+                    : null;
+                  return (
+                    <article
+                      className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${playedCellIds.includes(cell.id) ? " is-played" : ""}`}
+                      key={cell.id}
+                      onClick={() => onSelectCell(cell.id)}
+                    >
+                      <div className="cell-topline">
+                        <span className="status-dot" />
+                        <span>{statusLabel[cell.status]}</span>
+                        <button
+                          type="button"
+                          className="playlist-add-button"
+                          disabled={!cell.current_result}
+                          aria-label={`リストに追加: ${reference.label} / ${line.text}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onAppendToPlaylist(cell.id);
+                          }}
+                        >
+                          ＋ リスト
+                        </button>
+                      </div>
+                      {audioUrl ? (
+                        <audio
+                          ref={(element) => {
+                            if (element) audioElements.current.set(cell.id, element);
+                            else audioElements.current.delete(cell.id);
+                          }}
+                          aria-label={`音声: ${reference.label} / ${line.text}`}
+                          controls
+                          preload="none"
+                          src={audioUrl}
+                          onPlay={() => markPlayed(cell.id)}
+                          onEnded={() => playNextInReference(cell)}
+                        />
+                      ) : <div className="audio-placeholder">音声はまだありません</div>}
+                      <div className="cell-message-slot">
+                        {cell.error_message ? <p className="cell-error">{cell.error_message}</p> : null}
+                      </div>
                       <button
                         type="button"
-                        className="playlist-add-button"
-                        disabled={!cell.current_result}
-                        aria-label={`リストに追加: ${reference.label} / ${line.text}`}
+                        className="regen-button"
+                        aria-label={`Regenerate ${reference.label} / ${line.text}`}
+                        disabled={cell.status === "generating"}
                         onClick={(event) => {
                           event.stopPropagation();
-                          onAppendToPlaylist(cell.id);
+                          onRegenerate(cell.id);
                         }}
                       >
-                        ＋ リスト
+                        再生成
                       </button>
-                    </div>
-                    {audioUrl ? (
-                      <audio
-                        ref={(element) => {
-                          if (element) audioElements.current.set(cell.id, element);
-                          else audioElements.current.delete(cell.id);
-                        }}
-                        aria-label={`音声: ${reference.label} / ${line.text}`}
-                        controls
-                        preload="none"
-                        src={audioUrl}
-                        onPlay={() => markPlayed(cell.id)}
-                        onEnded={() => playNextInReference(cell)}
-                      />
-                    ) : <div className="audio-placeholder">音声はまだありません</div>}
-                    <div className="cell-message-slot">
-                      {cell.error_message ? <p className="cell-error">{cell.error_message}</p> : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="regen-button"
-                      aria-label={`Regenerate ${reference.label} / ${line.text}`}
-                      disabled={cell.status === "generating"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRegenerate(cell.id);
-                      }}
-                    >
-                      再生成
-                    </button>
-                  </article>
-                );
-              })}
+                    </article>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+            {insertionSlot(lineIndex + 1, `${lineIndex + 1}行目の後に追加`)}
+          </Fragment>
         ))}
       </div>
     </div>

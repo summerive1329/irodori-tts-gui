@@ -35,6 +35,7 @@ type Props = {
   onAddReference: (label: string, file: File) => void;
   onDeleteReference: (referenceId: string) => void;
   onEditLine: (lineId: string, text: string) => void;
+  onInsertLine: (index: number, text: string) => void;
   onDeleteLine: (lineId: string) => void;
   onReorder: (lineIds: string[]) => void;
   onGenerate: (onlyMissing: boolean) => void;
@@ -62,6 +63,7 @@ export function ProjectEditor({
   onAddReference,
   onDeleteReference,
   onEditLine,
+  onInsertLine,
   onDeleteLine,
   onReorder,
   onGenerate,
@@ -84,6 +86,9 @@ export function ProjectEditor({
   const selectedLine = selectedCell ? project.lines.find((line) => line.id === selectedCell.line_id) ?? null : null;
   const selectedReference = selectedCell ? project.references.find((reference) => reference.id === selectedCell.reference_id) ?? null : null;
   const canGenerate = project.lines.length > 0 && project.references.length > 0;
+  const durationByCellId = Object.fromEntries(
+    project.cells.map((cell) => [cell.id, cell.current_result?.duration_sec ?? 0]),
+  );
 
   return (
     <div className="studio-shell">
@@ -173,6 +178,7 @@ export function ProjectEditor({
             onAppendToPlaylist={onAppendToPlaylist}
             onAppendReferenceColumn={onAppendReferenceColumn}
             onEditLine={onEditLine}
+            onInsertLine={onInsertLine}
             onDeleteLine={onDeleteLine}
             onReorder={onReorder}
           />
@@ -189,6 +195,7 @@ export function ProjectEditor({
           />
           <ExportPlaylist
             items={project.export_playlist}
+            durationByCellId={durationByCellId}
             busy={busy}
             exportUrl={exportUrl}
             onRemove={onRemovePlaylistItem}

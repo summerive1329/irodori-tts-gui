@@ -39,6 +39,7 @@ function props() {
     onAddReference: vi.fn(),
     onDeleteReference: vi.fn(),
     onEditLine: vi.fn(),
+    onInsertLine: vi.fn(),
     onDeleteLine: vi.fn(),
     onReorder: vi.fn(),
     onGenerate: vi.fn(),
@@ -80,5 +81,21 @@ describe("ProjectEditor", () => {
     await user.click(screen.getByRole("button", { name: "未生成を実行" }));
 
     expect(editorProps.onGenerate).toHaveBeenCalledWith(true);
+  });
+
+  it("inserts a line at the requested position", async () => {
+    const user = userEvent.setup();
+    const editorProps = props();
+    editorProps.project = {
+      ...project,
+      lines: [{ id: "line-1", text: "hello", order_index: 0 }],
+    };
+    render(<ProjectEditor {...editorProps} />);
+
+    await user.click(screen.getByRole("button", { name: /1行目の後に追加/ }));
+    await user.type(screen.getByLabelText("追加するセリフ"), "new line");
+    await user.click(screen.getByRole("button", { name: "挿入" }));
+
+    expect(editorProps.onInsertLine).toHaveBeenCalledWith(1, "new line");
   });
 });
