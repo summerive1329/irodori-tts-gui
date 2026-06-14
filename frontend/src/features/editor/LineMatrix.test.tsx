@@ -45,6 +45,15 @@ function matrixProps() {
 }
 
 describe("LineMatrix", () => {
+  it("renders a corner cell before the first reference header", () => {
+    render(<LineMatrix {...matrixProps()} />);
+
+    const headers = screen.getAllByTestId("matrix-header-cell");
+
+    expect(headers[0]).toHaveTextContent("DIALOGUE");
+    expect(headers[1]).toHaveTextContent("toru");
+  });
+
   it("regenerates only the chosen line and reference cell", async () => {
     const user = userEvent.setup();
     const props = matrixProps();
@@ -138,6 +147,24 @@ describe("LineMatrix", () => {
     expect(props.onReorder).toHaveBeenCalledWith(["line-2", "line-3", "line-1"]);
   });
 
+  it("supports dragging the second row to the top slot", () => {
+    const props = matrixProps();
+    props.lines = [
+      { id: "line-1", text: "one", order_index: 0 },
+      { id: "line-2", text: "two", order_index: 1 },
+      { id: "line-3", text: "three", order_index: 2 },
+    ];
+    props.references = [];
+    props.cells = [];
+    render(<LineMatrix {...props} />);
+
+    fireEvent.dragStart(screen.getByRole("button", { name: "並べ替え: two" }));
+    fireEvent.dragEnter(screen.getByLabelText("先頭へ移動"));
+    fireEvent.drop(screen.getByLabelText("先頭へ移動"));
+
+    expect(props.onReorder).toHaveBeenCalledWith(["line-2", "line-1", "line-3"]);
+  });
+
   it("keeps playback available but disables project mutations while busy", () => {
     const props = matrixProps();
     props.busy = true;
@@ -158,5 +185,11 @@ describe("LineMatrix", () => {
     await user.click(screen.getByRole("button", { name: "再生成: toru / hello" }));
 
     expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");
+  });
+
+  it("keeps a fixed played badge slot even before playback", () => {
+    render(<LineMatrix {...matrixProps()} />);
+
+    expect(screen.getAllByText("未再生")).toHaveLength(2);
   });
 });

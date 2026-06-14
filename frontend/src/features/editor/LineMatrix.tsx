@@ -9,6 +9,7 @@ type Props = {
   cells: CellItem[];
   busy: boolean;
   allowRegenerateWhileBusy?: boolean;
+  dialogueColumnWidth?: number;
   autoPlay: boolean;
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
@@ -36,6 +37,7 @@ export function LineMatrix({
   cells,
   busy,
   allowRegenerateWhileBusy = false,
+  dialogueColumnWidth = 440,
   autoPlay,
   selectedCellId,
   onSelectCell,
@@ -51,8 +53,10 @@ export function LineMatrix({
   const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
   const [insertionText, setInsertionText] = useState("");
   const [draggedLineId, setDraggedLineId] = useState<string | null>(null);
+  const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null);
   const audioElements = useRef(new Map<string, HTMLAudioElement>());
   const orderedLines = [...lines].sort((a, b) => a.order_index - b.order_index);
+  const gridTemplateColumns = `${dialogueColumnWidth}px repeat(${Math.max(references.length, 1)}, minmax(0, 288px))`;
 
   function markPlayed(cellId: string) {
     setPlayedCellIds((current) => current.includes(cellId) ? current : [...current, cellId]);
@@ -76,15 +80,25 @@ export function LineMatrix({
     const adjustedIndex = sourceIndex < index ? index - 1 : index;
     reordered.splice(Math.max(0, Math.min(adjustedIndex, reordered.length)), 0, draggedLineId);
     setDraggedLineId(null);
+    setDragTargetIndex(null);
     if (reordered.some((id, itemIndex) => id !== ids[itemIndex])) onReorder(reordered);
   }
 
   function insertionSlot(index: number, label: string) {
+    const moveLabel = index === 0 ? "先頭へ移動" : `${index}番目へ移動`;
     return (
       <div
-        className={`line-insert-slot${draggedLineId ? " is-drag-target" : ""}`}
-        aria-label={`${index}番目へ移動`}
-        onDragOver={(event) => event.preventDefault()}
+        className={`line-insert-slot${dragTargetIndex === index ? " is-drag-target" : ""}`}
+        style={{ gridColumn: "1 / -1" }}
+        aria-label={moveLabel}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          if (draggedLineId) setDragTargetIndex(index);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (draggedLineId && dragTargetIndex !== index) setDragTargetIndex(index);
+        }}
         onDrop={(event) => {
           event.preventDefault();
           dropLineAt(index);
@@ -109,7 +123,7 @@ export function LineMatrix({
         ) : (
           <button type="button" className="line-insert-button" disabled={busy} onClick={() => setInsertionIndex(index)}>＋ {label}</button>
         )}
-        {draggedLineId && <span className="drop-hint">ここへ移動</span>}
+        {dragTargetIndex === index && <span className="drop-hint">ここへ移動</span>}
       </div>
     );
   }
@@ -126,16 +140,31 @@ export function LineMatrix({
 
   return (
     <div className="matrix-scroll">
-      <div className="matrix" style={{ "--reference-count": Math.max(references.length, 1) } as React.CSSProperties}>
-        <div className="matrix-corner">
+      <div
+        className="matrix"
+        style={{
+          "--dialogue-column-width": `${dialogueColumnWidth}px`,
+          "--reference-count": Math.max(references.length, 1),
+          gridTemplateColumns,
+        } as React.CSSProperties}
+      >
+        <div className="matrix-corner" data-testid="matrix-header-cell">
           <span className="eyebrow">DIALOGUE</span>
           <span>{orderedLines.length} セリフ</span>
         </div>
         {references.map((reference) => (
-          <div className="matrix-reference-header" key={reference.id}>
+          <div className="matrix-reference-header" data-testid="matrix-header-cell" key={reference.id}>
             <strong>{reference.label}</strong>
             <small>{reference.source_filename}</small>
-            <button type="button" className="column-add-button" disabled={busy} aria-label={`${reference.label}を上から追加`} onClick={() => onAppendReferenceColumn(reference.id)}>上から追加</button>
+            <button
+              type="button"
+              className="column-add-button"
+              disabled={busy}
+              aria-label={`${reference.label}を上から追加`}
+              onClick={() => onAppendReferenceColumn(reference.id)}
+            >
+              上からリスト追加
+            </button>
           </div>
         ))}
         {references.length === 0 && <div className="matrix-reference-header is-empty">参照音声を追加すると生成セルが表示されます</div>}
@@ -163,9 +192,13 @@ export function LineMatrix({
                     aria-label={`並べ替え: ${line.text}`}
                     onDragStart={(event) => {
                       setDraggedLineId(line.id);
+                      setDragTargetIndex(lineIndex);
                       event.dataTransfer?.setData("text/plain", line.id);
                     }}
-                    onDragEnd={() => setDraggedLineId(null)}
+                    onDragEnd={() => {
+                      setDraggedLineId(null);
+                      setDragTargetIndex(null);
+                    }}
                   >
                     ≡
                   </button>
@@ -180,10 +213,11 @@ export function LineMatrix({
                   const audioUrl = cell.current_result
                     ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
                     : null;
+                  const isPlayed = playedCellIds.includes(cell.id);
                   const regenerateLocked = cell.status === "generating" || (busy && !allowRegenerateWhileBusy);
                   return (
                     <article
-                      className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${playedCellIds.includes(cell.id) ? " is-played" : ""}`}
+                      className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${isPlayed ? " is-played" : ""}`}
                       key={cell.id}
                       onClick={() => onSelectCell(cell.id)}
                     >
@@ -219,6 +253,9 @@ export function LineMatrix({
                       ) : <div className="audio-placeholder">音声はまだありません</div>}
                       <div className="cell-message-slot">
                         {cell.error_message ? <p className="cell-error">{cell.error_message}</p> : null}
+                      </div>
+                      <div className={`cell-play-state${isPlayed ? " is-played" : ""}`} aria-live="polite">
+                        {isPlayed ? "再生済み" : "未再生"}
                       </div>
                       <button
                         type="button"
