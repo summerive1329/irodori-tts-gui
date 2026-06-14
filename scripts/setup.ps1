@@ -9,6 +9,20 @@ $IrodoriDir = Join-Path $Root "vendor\Irodori-TTS"
 $FrontendDir = Join-Path $Root "frontend"
 $BackendDir = Join-Path $Root "backend"
 
+function Invoke-CheckedCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Command,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [object[]]$Arguments
+    )
+
+    & $Command @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Command failed with exit code $LASTEXITCODE."
+    }
+}
+
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv is required. Install it from https://docs.astral.sh/uv/"
 }
@@ -17,10 +31,14 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 }
 
 Write-Host "[1/4] Initializing Irodori-TTS submodule..."
-git -C $Root submodule update --init --recursive
+Invoke-CheckedCommand -Command git -Arguments @(
+    "-C", $Root, "submodule", "update", "--init", "--recursive"
+)
 
 Write-Host "[2/4] Installing Irodori-TTS with backend: $TorchBackend"
-uv sync --project $IrodoriDir --extra $TorchBackend
+Invoke-CheckedCommand -Command uv -Arguments @(
+    "sync", "--project", $IrodoriDir, "--extra", $TorchBackend
+)
 
 $PythonExe = Join-Path $IrodoriDir ".venv\Scripts\python.exe"
 if (-not (Test-Path $PythonExe)) {
@@ -28,9 +46,11 @@ if (-not (Test-Path $PythonExe)) {
 }
 
 Write-Host "[3/4] Installing GUI backend into the Irodori environment..."
-uv pip install --python $PythonExe -e "$BackendDir[dev]"
+Invoke-CheckedCommand -Command uv -Arguments @(
+    "pip", "install", "--python", $PythonExe, "-e", "$BackendDir[dev]"
+)
 
 Write-Host "[4/4] Installing frontend packages..."
-npm --prefix $FrontendDir install
+Invoke-CheckedCommand -Command npm -Arguments @("--prefix", $FrontendDir, "install")
 
 Write-Host "Setup complete. Double-click run.bat to start Irodori Studio."
