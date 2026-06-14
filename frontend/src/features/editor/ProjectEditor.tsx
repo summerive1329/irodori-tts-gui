@@ -6,7 +6,10 @@ import { ExportPlaylist } from "./ExportPlaylist";
 import { GenerationConsole } from "./GenerationConsole";
 import { LineDropzone } from "./LineDropzone";
 import { LineMatrix } from "./LineMatrix";
+import { PendingDeleteToast } from "./PendingDeleteToast";
 import { ReferenceSidebar } from "./ReferenceSidebar";
+import { useDialogueColumnWidth } from "./useDialogueColumnWidth";
+import { usePendingLineDeletion } from "./usePendingLineDeletion";
 
 type ProjectSettings = Pick<
   Project,
@@ -79,6 +82,8 @@ export function ProjectEditor({
   const [manualText, setManualText] = useState("");
   const [autoPlay, setAutoPlay] = useState(false);
   const [settings, setSettings] = useState<ProjectSettings>(() => settingsFrom(project));
+  const { pending, requestDelete, undoDelete } = usePendingLineDeletion(onDeleteLine);
+  const { width, commitWidth } = useDialogueColumnWidth();
 
   useEffect(() => setSettings(settingsFrom(project)), [project]);
 
@@ -87,6 +92,7 @@ export function ProjectEditor({
   const selectedReference = selectedCell ? project.references.find((reference) => reference.id === selectedCell.reference_id) ?? null : null;
   const canGenerate = project.lines.length > 0 && project.references.length > 0;
   const allowRegenerateWhileBusy = job?.status === "running" && (job.kind === "generate_missing" || job.kind === "generate_all");
+  const hiddenLineIds = new Set(pending ? [pending.line.id] : []);
   const durationByCellId = Object.fromEntries(
     project.cells.map((cell) => [cell.id, cell.current_result?.duration_sec ?? 0]),
   );
@@ -173,7 +179,9 @@ export function ProjectEditor({
             references={project.references}
             cells={project.cells}
             busy={busy}
+            dialogueColumnWidth={width}
             autoPlay={autoPlay}
+            hiddenLineIds={hiddenLineIds}
             selectedCellId={selectedCellId}
             onSelectCell={onSelectCell}
             allowRegenerateWhileBusy={allowRegenerateWhileBusy}
@@ -182,8 +190,12 @@ export function ProjectEditor({
             onAppendReferenceColumn={onAppendReferenceColumn}
             onEditLine={onEditLine}
             onInsertLine={onInsertLine}
-            onDeleteLine={onDeleteLine}
+            onDeleteLine={(lineId) => {
+              const line = project.lines.find((item) => item.id === lineId);
+              if (line) requestDelete(line);
+            }}
             onReorder={onReorder}
+            onResizeDialogueColumn={commitWidth}
           />
         </main>
 
@@ -208,6 +220,7 @@ export function ProjectEditor({
           />
         </div>
       </div>
+      <PendingDeleteToast pending={pending} onUndo={undoDelete} />
     </div>
   );
 }

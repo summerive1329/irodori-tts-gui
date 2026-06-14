@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -52,6 +52,17 @@ function props(): ComponentProps<typeof ProjectEditor> {
     onExport: vi.fn(),
     onExportText: vi.fn(),
     onSaveSettings: vi.fn(),
+  };
+}
+
+function projectWithLines(...texts: string[]): Project {
+  return {
+    ...project,
+    lines: texts.map((text, index) => ({
+      id: `line-${index + 1}`,
+      text,
+      order_index: index,
+    })),
   };
 }
 
@@ -150,5 +161,35 @@ describe("ProjectEditor", () => {
     await user.click(screen.getByRole("button", { name: "挿入" }));
 
     expect(editorProps.onInsertLine).toHaveBeenCalledWith(1, "new line");
+  });
+
+  it("lets the user undo a line deletion before the API call is sent", async () => {
+    vi.useFakeTimers();
+    const editorProps = props();
+    editorProps.project = projectWithLines("hello", "world");
+    render(<ProjectEditor {...editorProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "削除: hello" }));
+    expect(screen.getByRole("button", { name: "元に戻す" })).toBeInTheDocument();
+    expect(editorProps.onDeleteLine).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "元に戻す" }));
+    vi.runAllTimers();
+
+    expect(editorProps.onDeleteLine).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("persists the dialogue column width after resize", () => {
+    window.localStorage.clear();
+    const editorProps = props();
+    editorProps.project = projectWithLines("hello", "world");
+    render(<ProjectEditor {...editorProps} />);
+
+    fireEvent.pointerDown(screen.getByRole("separator", { name: "セリフ列の幅を変更" }), { clientX: 440 });
+    fireEvent.pointerMove(window, { clientX: 520 });
+    fireEvent.pointerUp(window);
+
+    expect(window.localStorage.getItem("irodori.dialogueColumnWidth")).toBe("520");
   });
 });

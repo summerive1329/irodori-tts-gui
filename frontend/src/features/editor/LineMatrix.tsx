@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import type { CellItem, LineItem, ReferenceItem } from "../../types";
 
@@ -11,6 +11,7 @@ type Props = {
   allowRegenerateWhileBusy?: boolean;
   dialogueColumnWidth?: number;
   autoPlay: boolean;
+  hiddenLineIds?: Set<string>;
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
   onRegenerate: (cellId: string) => void;
@@ -20,6 +21,7 @@ type Props = {
   onInsertLine: (index: number, text: string) => void;
   onDeleteLine?: (lineId: string) => void;
   onReorder: (lineIds: string[]) => void;
+  onResizeDialogueColumn?: (width: number) => void;
 };
 
 const statusLabel: Record<CellItem["status"], string> = {
@@ -39,6 +41,7 @@ export function LineMatrix({
   allowRegenerateWhileBusy = false,
   dialogueColumnWidth = 440,
   autoPlay,
+  hiddenLineIds = new Set<string>(),
   selectedCellId,
   onSelectCell,
   onRegenerate,
@@ -48,15 +51,41 @@ export function LineMatrix({
   onInsertLine,
   onDeleteLine,
   onReorder,
+  onResizeDialogueColumn,
 }: Props) {
   const [playedCellIds, setPlayedCellIds] = useState<string[]>([]);
   const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
   const [insertionText, setInsertionText] = useState("");
   const [draggedLineId, setDraggedLineId] = useState<string | null>(null);
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null);
+  const [resizing, setResizing] = useState(false);
   const audioElements = useRef(new Map<string, HTMLAudioElement>());
-  const orderedLines = [...lines].sort((a, b) => a.order_index - b.order_index);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(dialogueColumnWidth);
+  const orderedLines = [...lines]
+    .filter((line) => !hiddenLineIds.has(line.id))
+    .sort((a, b) => a.order_index - b.order_index);
   const gridTemplateColumns = `${dialogueColumnWidth}px repeat(${Math.max(references.length, 1)}, minmax(0, 288px))`;
+
+  useEffect(() => {
+    if (!resizing || !onResizeDialogueColumn) return;
+    const commitWidth = onResizeDialogueColumn;
+
+    function handlePointerMove(event: PointerEvent) {
+      commitWidth(resizeStartWidth.current + (event.clientX - resizeStartX.current));
+    }
+
+    function handlePointerUp() {
+      setResizing(false);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [onResizeDialogueColumn, resizing]);
 
   function markPlayed(cellId: string) {
     setPlayedCellIds((current) => current.includes(cellId) ? current : [...current, cellId]);
@@ -151,6 +180,19 @@ export function LineMatrix({
         <div className="matrix-corner" data-testid="matrix-header-cell">
           <span className="eyebrow">DIALOGUE</span>
           <span>{orderedLines.length} セリフ</span>
+          {onResizeDialogueColumn ? (
+            <div
+              className="dialogue-column-resizer"
+              role="separator"
+              aria-label="セリフ列の幅を変更"
+              aria-orientation="vertical"
+              onPointerDown={(event) => {
+                resizeStartX.current = event.clientX;
+                resizeStartWidth.current = dialogueColumnWidth;
+                setResizing(true);
+              }}
+            />
+          ) : null}
         </div>
         {references.map((reference) => (
           <div className="matrix-reference-header" data-testid="matrix-header-cell" key={reference.id}>
