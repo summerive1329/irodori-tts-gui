@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "./types";
@@ -15,6 +16,19 @@ const apiMocks = vi.hoisted(() => ({
 const jobHookControls = vi.hoisted(() => ({
   calls: [] as string[][],
   seedTrackedJobIds: null as string[] | null,
+  seedDisplayJob: null as {
+    id: string;
+    project_id: string;
+    kind: "generate_missing" | "generate_all" | "regenerate_cell";
+    status: "running" | "completed" | "failed";
+    total_cells: number;
+    completed_cells: number;
+    target_cell_ids: string[];
+    active_cell_id: string | null;
+    error_message: string | null;
+    created_at: string;
+    updated_at: string;
+  } | null,
 }));
 
 vi.mock("./api/client", async () => {
@@ -29,19 +43,39 @@ vi.mock("./features/editor/useProjectJobs", async () => {
       projectId: string | null;
       trackedJobIds: string[];
       setTrackedJobIds: React.Dispatch<React.SetStateAction<string[]>>;
+      setDisplayJob: React.Dispatch<
+        React.SetStateAction<{
+          id: string;
+          project_id: string;
+          kind: "generate_missing" | "generate_all" | "regenerate_cell";
+          status: "running" | "completed" | "failed";
+          total_cells: number;
+          completed_cells: number;
+          target_cell_ids: string[];
+          active_cell_id: string | null;
+          error_message: string | null;
+          created_at: string;
+          updated_at: string;
+        } | null>
+      >;
     }) => {
       jobHookControls.calls.push([...options.trackedJobIds]);
       React.useEffect(() => {
-        if (!jobHookControls.seedTrackedJobIds) return;
-        options.setTrackedJobIds((current) =>
-          current.length === 0 ? jobHookControls.seedTrackedJobIds ?? current : current,
-        );
-      }, [options.projectId, options.setTrackedJobIds]);
+        if (jobHookControls.seedTrackedJobIds) {
+          options.setTrackedJobIds((current) =>
+            current.length === 0 ? jobHookControls.seedTrackedJobIds ?? current : current,
+          );
+        }
+        if (jobHookControls.seedDisplayJob) {
+          options.setDisplayJob(jobHookControls.seedDisplayJob);
+        }
+      }, [options.projectId, options.setDisplayJob, options.setTrackedJobIds]);
     },
   };
 });
 
 import { AppRouter } from "./router";
+import { App } from "./App";
 
 const project: Project = {
   id: "project-1",
@@ -86,11 +120,23 @@ const projectWithCells: Project = {
   ],
 };
 
+function RoutedAppHarness() {
+  const navigate = useNavigate();
+
+  return (
+    <>
+      <button type="button" onClick={() => navigate("/projects/project-2")}>next project</button>
+      <App />
+    </>
+  );
+}
+
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     jobHookControls.calls = [];
     jobHookControls.seedTrackedJobIds = null;
+    jobHookControls.seedDisplayJob = null;
     window.history.pushState({}, "", "/");
     apiMocks.listProjects.mockResolvedValue([]);
     apiMocks.createProject.mockResolvedValue(project);
@@ -159,12 +205,41 @@ describe("App", () => {
     expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
   });
 
-  it("keeps tracked jobs when a newly started job completes immediately", async () => {
+  it("shows the route loading shell while switching between project routes", async () => {
+    let resolveSecondProject!: (value: Project) => void;
+    apiMocks.getProject.mockImplementation((projectId: string) => {
+      if (projectId === "project-1") return Promise.resolve(project);
+      return new Promise((resolve) => {
+        resolveSecondProject = resolve;
+      });
+    });
+
     const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<RoutedAppHarness />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "next project" }));
+
+    expect(screen.getByText("Loading project…")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("demo")).not.toBeInTheDocument();
+
+    resolveSecondProject({ ...project, id: "project-2", name: "second project" });
+
+    expect(await screen.findByDisplayValue("second project")).toBeInTheDocument();
+  });
+
+  it("keeps the editor locked when a completed display job coexists with tracked running jobs", async () => {
     window.history.pushState({}, "", "/projects/project-1");
-    jobHookControls.seedTrackedJobIds = ["job-existing"];
     apiMocks.getProject.mockResolvedValue(projectWithCells);
-    apiMocks.startGenerationJob.mockResolvedValue({
+    jobHookControls.seedTrackedJobIds = ["job-existing"];
+    jobHookControls.seedDisplayJob = {
       id: "job-finished",
       project_id: "project-1",
       kind: "generate_missing",
@@ -176,14 +251,12 @@ describe("App", () => {
       error_message: null,
       created_at: "2026-06-14T00:00:00Z",
       updated_at: "2026-06-14T00:00:00Z",
-    });
+    };
 
     render(<AppRouter />);
 
-    await screen.findByRole("button", { name: "未生成を実行" });
-    await user.click(screen.getByRole("button", { name: "未生成を実行" }));
-
-    await waitFor(() => expect(apiMocks.startGenerationJob).toHaveBeenCalledWith("project-1", true));
+    const button = await screen.findByRole("button", { name: "未生成を実行" });
+    await waitFor(() => expect(button).toBeDisabled());
     await waitFor(() => expect(jobHookControls.calls.at(-1)).toEqual(["job-existing"]));
   });
 

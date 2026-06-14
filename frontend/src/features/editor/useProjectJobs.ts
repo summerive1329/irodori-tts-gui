@@ -1,4 +1,4 @@
-import { useEffect, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 
 import * as api from "../../api/client";
 import type { GenerationJob, Project } from "../../types";
@@ -22,19 +22,20 @@ export function useProjectJobs({
   setTrackedJobIds,
   setError,
 }: Options) {
+  const trackedJobIdsRef = useRef(trackedJobIds);
+  trackedJobIdsRef.current = trackedJobIds;
+
   useEffect(() => {
     if (!projectId || trackedJobIds.length === 0) return;
 
     let cancelled = false;
     let timer: number | undefined;
     let failures = 0;
-    let currentJobIds = trackedJobIds;
-
-    function sameJobIds(next: string[]) {
-      return currentJobIds.length === next.length && currentJobIds.every((jobId, index) => jobId === next[index]);
-    }
 
     async function poll() {
+      const currentJobIds = trackedJobIdsRef.current;
+      if (currentJobIds.length === 0) return;
+
       try {
         const [project, jobs] = await Promise.all([
           api.getProject(projectId),
@@ -43,15 +44,12 @@ export function useProjectJobs({
         if (cancelled) return;
         failures = 0;
         setProject(project);
-        const latestJob = jobs.at(-1) ?? null;
-        setDisplayJob(latestJob);
         const runningJobIds = jobs.filter((job) => job.status === "running").map((job) => job.id);
-        if (!sameJobIds(runningJobIds)) {
-          currentJobIds = runningJobIds;
-          setTrackedJobIds(runningJobIds);
-        }
+        const latestRunningJob = jobs.findLast((job) => job.status === "running") ?? null;
+        setDisplayJob(latestRunningJob ?? jobs.at(-1) ?? null);
+        trackedJobIdsRef.current = runningJobIds;
+        setTrackedJobIds(runningJobIds);
         if (runningJobIds.length > 0) {
-          currentJobIds = runningJobIds;
           timer = window.setTimeout(poll, 500);
         }
       } catch (reason) {
@@ -59,6 +57,8 @@ export function useProjectJobs({
         failures += 1;
         if (failures > MAX_RETRIES) {
           setError(reason instanceof Error ? reason.message : String(reason));
+          trackedJobIdsRef.current = [];
+          setDisplayJob(null);
           setTrackedJobIds([]);
           return;
         }
@@ -71,5 +71,5 @@ export function useProjectJobs({
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [projectId, setDisplayJob, setError, setProject, setTrackedJobIds, trackedJobIds]);
+  }, [projectId, setDisplayJob, setError, setProject, setTrackedJobIds, trackedJobIds.length]);
 }

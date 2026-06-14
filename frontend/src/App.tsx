@@ -14,7 +14,7 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
-  const [job, setJob] = useState<GenerationJob | null>(null);
+  const [displayJob, setDisplayJob] = useState<GenerationJob | null>(null);
   const [trackedJobIds, setTrackedJobIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(true);
   const [routeLoading, setRouteLoading] = useState(Boolean(projectId));
@@ -28,7 +28,7 @@ export function App() {
     if (projectId) setError(null);
     setSelectedCellId(null);
     setExportUrl(null);
-    setJob(null);
+    setDisplayJob(null);
     setTrackedJobIds([]);
 
     const request = projectId
@@ -69,7 +69,7 @@ export function App() {
     projectId: projectId ?? null,
     trackedJobIds,
     setProject,
-    setDisplayJob: setJob,
+    setDisplayJob,
     setTrackedJobIds,
     setError,
   });
@@ -98,9 +98,11 @@ export function App() {
     setError(null);
     try {
       const started = await action();
-      setJob(started);
       if (started.status === "running") {
+        setDisplayJob(started);
         setTrackedJobIds((current) => [...new Set([...current, started.id])]);
+      } else if (trackedJobIds.length === 0) {
+        setDisplayJob(started);
       }
       if (started.status !== "running" && projectId) {
         setProject(await api.getProject(projectId));
@@ -112,7 +114,7 @@ export function App() {
     }
   }
 
-  if (projectId && routeLoading && !project) {
+  if (projectId && routeLoading) {
     return <div className="route-loading-shell">Loading project…</div>;
   }
 
@@ -147,8 +149,8 @@ export function App() {
       <ProjectEditor
         key={project.id}
         project={project}
-        busy={busy || job?.status === "running"}
-        job={job}
+        busy={busy || trackedJobIds.length > 0}
+        job={displayJob}
         selectedCellId={selectedCellId}
         exportUrl={exportUrl}
         onBack={() => navigate("/")}

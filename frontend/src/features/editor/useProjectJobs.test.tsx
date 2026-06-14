@@ -1,6 +1,6 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../api/client";
 import type { GenerationJob, Project } from "../../types";
@@ -39,11 +39,24 @@ const runningJob: GenerationJob = {
   updated_at: "2026-06-14T00:00:00Z",
 };
 
-function HookHarness({ initialTrackedJobIds = ["job-1"] }: { initialTrackedJobIds?: string[] }) {
+async function flushRetryCycle(count: number) {
+  for (let index = 0; index < count; index += 1) {
+    await Promise.resolve();
+    await vi.runOnlyPendingTimersAsync();
+  }
+}
+
+function HookHarness({
+  initialTrackedJobIds = ["job-1"],
+  initialDisplayJob = null,
+}: {
+  initialTrackedJobIds?: string[];
+  initialDisplayJob?: GenerationJob | null;
+}) {
   const [trackedJobIds, setTrackedJobIds] = useState(initialTrackedJobIds);
   const [, setProject] = useState<Project | null>(project);
-  const [, setDisplayJob] = useState<GenerationJob | null>(null);
-  const [, setError] = useState<string | null>(null);
+  const [displayJob, setDisplayJob] = useState<GenerationJob | null>(initialDisplayJob);
+  const [error, setError] = useState<string | null>(null);
 
   (
     useProjectJobs as unknown as (options: {
@@ -63,11 +76,23 @@ function HookHarness({ initialTrackedJobIds = ["job-1"] }: { initialTrackedJobId
     setError,
   });
 
-  return null;
+  return (
+    <>
+      <output data-testid="tracked-job-count">{trackedJobIds.length}</output>
+      <output data-testid="display-job-status">{displayJob?.status ?? "none"}</output>
+      <output data-testid="error-message">{error ?? "none"}</output>
+    </>
+  );
 }
 
 describe("useProjectJobs", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -85,8 +110,10 @@ describe("useProjectJobs", () => {
 
     render(<HookHarness />);
 
-    await waitFor(() => expect(getJob).toHaveBeenCalledTimes(2), { timeout: 1200 });
-    await waitFor(() => expect(getProject).toHaveBeenCalledTimes(2), { timeout: 1200 });
+    await vi.advanceTimersByTimeAsync(750);
+
+    expect(getJob).toHaveBeenCalledTimes(2);
+    expect(getProject).toHaveBeenCalledTimes(2);
   });
 
   it("continues polling while any tracked job is still running", async () => {
@@ -99,7 +126,24 @@ describe("useProjectJobs", () => {
 
     render(<HookHarness initialTrackedJobIds={["job-1", "job-2"]} />);
 
-    await waitFor(() => expect(getJob).toHaveBeenCalledTimes(3), { timeout: 1200 });
-    await waitFor(() => expect(getProject).toHaveBeenCalledTimes(2), { timeout: 1200 });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(getJob).toHaveBeenCalledTimes(3);
+    expect(getProject).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the running job lock and display job after retry exhaustion", async () => {
+    vi.spyOn(api, "getProject").mockResolvedValue(project);
+    vi.spyOn(api, "getJob").mockRejectedValue(new Error("temporary"));
+
+    render(<HookHarness initialDisplayJob={runningJob} />);
+
+    await flushRetryCycle(4);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(screen.getByTestId("tracked-job-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("display-job-status")).toHaveTextContent("none");
+    expect(screen.getByTestId("error-message")).toHaveTextContent("temporary");
   });
 });
