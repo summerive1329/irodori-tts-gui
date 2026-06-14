@@ -21,6 +21,11 @@ class FakeRuntimeManager:
         return GenerationArtifact(sample_rate=24000, duration_sec=1.0, used_seed=7)
 
 
+class FailingRuntimeManager(FakeRuntimeManager):
+    def synthesize(self, prepared, text, output_path: Path, parameters) -> GenerationArtifact:
+        raise RuntimeError("synthesis failed")
+
+
 def _project() -> Project:
     project = Project.create("demo")
     project.append_lines(["one", "two"])
@@ -59,3 +64,39 @@ def test_regenerate_updates_only_the_target_cell(tmp_path: Path) -> None:
     assert len(manager.generated) == 1
     assert project.cells[0].current_result is not None
     assert untouched.current_result.audio_path == "cells/original.wav"
+
+
+def test_failed_regenerate_preserves_the_previous_target_result(tmp_path: Path) -> None:
+    project = _project()
+    target = project.cells[0]
+    target.current_result = CellResult(
+        audio_path="cells/previous.wav",
+        sample_rate=24000,
+        duration_sec=1.0,
+        seed=1,
+    )
+    service = GenerationService(FailingRuntimeManager(), tmp_path)
+
+    try:
+        service.regenerate_cell(project, target.id)
+    except RuntimeError:
+        pass
+
+    assert target.status == "error"
+    assert target.current_result is not None
+    assert target.current_result.audio_path == "cells/previous.wav"
+
+
+def test_generate_all_reports_cell_state_transitions(tmp_path: Path) -> None:
+    project = Project.create("demo")
+    project.append_lines(["one"])
+    project.add_reference("toru", "toru.wav", "references/toru.wav", 1.0)
+    transitions: list[str] = []
+    service = GenerationService(FakeRuntimeManager(), tmp_path)
+
+    service.generate_all(
+        project,
+        on_state_change=lambda _project, cell: transitions.append(cell.status),
+    )
+
+    assert transitions == ["queued", "generating", "ready"]
