@@ -5,6 +5,8 @@ $FrontendDir = Join-Path $Root "frontend"
 $IrodoriPython = Join-Path $Root "vendor\Irodori-TTS\.venv\Scripts\python.exe"
 $BackendPython = Join-Path $BackendDir ".venv\Scripts\python.exe"
 
+. (Join-Path $PSScriptRoot "launch_helpers.ps1")
+
 if (Test-Path $IrodoriPython) {
     $PythonExe = $IrodoriPython
 } elseif (Test-Path $BackendPython) {
@@ -27,5 +29,8 @@ Start-Process powershell.exe -WorkingDirectory $FrontendDir -ArgumentList @(
     "-NoExit", "-NoProfile", "-Command", $FrontendCommand
 )
 
-Start-Sleep -Seconds 2
+Write-Host "Waiting for the backend..."
+Wait-ForHttpEndpoint -Url "http://127.0.0.1:8000/api/health"
+Write-Host "Waiting for the frontend..."
+Wait-ForHttpEndpoint -Url "http://127.0.0.1:5173"
 Start-Process "http://127.0.0.1:5173"
