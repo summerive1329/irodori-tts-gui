@@ -153,7 +153,6 @@ describe("LineMatrix", () => {
     const user = userEvent.setup();
     const props = matrixProps();
     props.busy = true;
-    // @ts-expect-error Task 2 adds this prop.
     render(<LineMatrix {...props} allowRegenerateWhileBusy />);
 
     await user.click(screen.getByRole("button", { name: "再生成: toru / hello" }));

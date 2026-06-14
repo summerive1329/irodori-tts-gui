@@ -27,6 +27,7 @@ export function useProjectJobs({
 
   useEffect(() => {
     if (!projectId || trackedJobIds.length === 0) return;
+    const activeProjectId = projectId;
 
     let cancelled = false;
     let timer: number | undefined;
@@ -38,14 +39,14 @@ export function useProjectJobs({
 
       try {
         const [project, jobs] = await Promise.all([
-          api.getProject(projectId),
-          Promise.all(currentJobIds.map((jobId) => api.getJob(projectId, jobId))),
+          api.getProject(activeProjectId),
+          Promise.all(currentJobIds.map((jobId) => api.getJob(activeProjectId, jobId))),
         ]);
         if (cancelled) return;
         failures = 0;
         setProject(project);
         const runningJobIds = jobs.filter((job) => job.status === "running").map((job) => job.id);
-        const latestRunningJob = jobs.findLast((job) => job.status === "running") ?? null;
+        const latestRunningJob = [...jobs].reverse().find((job) => job.status === "running") ?? null;
         setDisplayJob(latestRunningJob ?? jobs.at(-1) ?? null);
         trackedJobIdsRef.current = runningJobIds;
         setTrackedJobIds(runningJobIds);
