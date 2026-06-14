@@ -100,6 +100,34 @@ describe("ProjectEditor", () => {
     expect(editorProps.onGenerate).toHaveBeenCalledWith(false);
   });
 
+  it("keeps other regenerate buttons disabled during a running regeneration job", () => {
+    const editorProps = props();
+    editorProps.busy = true;
+    editorProps.job = {
+      id: "job-1",
+      project_id: "project-1",
+      kind: "regenerate_cell",
+      status: "running",
+      total_cells: 1,
+      completed_cells: 0,
+      target_cell_ids: ["cell-1"],
+      active_cell_id: "cell-1",
+      error_message: null,
+      created_at: "2026-06-14T00:00:00Z",
+      updated_at: "2026-06-14T00:00:00Z",
+    };
+    editorProps.project = {
+      ...project,
+      lines: [{ id: "line-1", text: "hello", order_index: 0 }],
+      references: [{ id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 }],
+      cells: [{ id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "ready", error_message: null, current_result: null }],
+      export_playlist: [],
+    };
+    render(<ProjectEditor {...editorProps} />);
+
+    expect(screen.getByRole("button", { name: "再生成: toru / hello" })).toBeDisabled();
+  });
+
   it("inserts a line at the requested position", async () => {
     const user = userEvent.setup();
     const editorProps = props();

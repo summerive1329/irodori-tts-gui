@@ -170,6 +170,15 @@ def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: 
     assert regen.json()["kind"] == "regenerate_cell"
     assert generated_job["status"] == "completed"
     assert regeneration_job["status"] == "completed"
+    final_project = client.get(f"/api/projects/{project_id}").json()
+    final_cells = {cell["id"]: cell for cell in final_project["cells"]}
+
+    assert all(cell["status"] == "ready" for cell in final_cells.values())
+    assert all(cell["error_message"] is None for cell in final_cells.values())
+    assert all(cell["current_result"] is not None for cell in final_cells.values())
+    assert final_cells[project["cells"][0]["id"]]["current_result"]["audio_path"].endswith(".wav")
+    assert final_cells[project["cells"][1]["id"]]["current_result"]["audio_path"].endswith(".wav")
+    assert final_cells[project["cells"][1]["id"]]["current_result"]["seed"] == 11
 
 
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:

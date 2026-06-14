@@ -86,7 +86,7 @@ export function ProjectEditor({
   const selectedLine = selectedCell ? project.lines.find((line) => line.id === selectedCell.line_id) ?? null : null;
   const selectedReference = selectedCell ? project.references.find((reference) => reference.id === selectedCell.reference_id) ?? null : null;
   const canGenerate = project.lines.length > 0 && project.references.length > 0;
-  const isGenerationJobRunning = job?.status === "running";
+  const allowRegenerateWhileBusy = job?.status === "running" && (job.kind === "generate_missing" || job.kind === "generate_all");
   const durationByCellId = Object.fromEntries(
     project.cells.map((cell) => [cell.id, cell.current_result?.duration_sec ?? 0]),
   );
@@ -176,7 +176,7 @@ export function ProjectEditor({
             autoPlay={autoPlay}
             selectedCellId={selectedCellId}
             onSelectCell={onSelectCell}
-            allowRegenerateWhileBusy={isGenerationJobRunning}
+            allowRegenerateWhileBusy={allowRegenerateWhileBusy}
             onRegenerate={(cellId) => onRegenerate(cellId, null)}
             onAppendToPlaylist={onAppendToPlaylist}
             onAppendReferenceColumn={onAppendReferenceColumn}
