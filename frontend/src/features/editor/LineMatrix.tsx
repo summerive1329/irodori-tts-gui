@@ -1,3 +1,5 @@
+import { useRef, useState } from "react";
+
 import type { CellItem, LineItem, ReferenceItem } from "../../types";
 
 type Props = {
@@ -5,6 +7,7 @@ type Props = {
   lines: LineItem[];
   references: ReferenceItem[];
   cells: CellItem[];
+  autoPlay: boolean;
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
   onRegenerate: (cellId: string) => void;
@@ -16,11 +19,11 @@ type Props = {
 };
 
 const statusLabel: Record<CellItem["status"], string> = {
-  idle: "Not generated",
-  queued: "Queued",
-  generating: "Generating",
-  ready: "Ready",
-  error: "Error",
+  idle: "未生成",
+  queued: "待機中",
+  generating: "生成中",
+  ready: "生成済み",
+  error: "エラー",
 };
 
 export function LineMatrix({
@@ -28,6 +31,7 @@ export function LineMatrix({
   lines,
   references,
   cells,
+  autoPlay,
   selectedCellId,
   onSelectCell,
   onRegenerate,
@@ -37,7 +41,23 @@ export function LineMatrix({
   onDeleteLine,
   onReorder,
 }: Props) {
+  const [playedCellIds, setPlayedCellIds] = useState<string[]>([]);
+  const audioElements = useRef(new Map<string, HTMLAudioElement>());
   const orderedLines = [...lines].sort((a, b) => a.order_index - b.order_index);
+
+  function markPlayed(cellId: string) {
+    setPlayedCellIds((current) => current.includes(cellId) ? current : [...current, cellId]);
+  }
+
+  function playNextInReference(cell: CellItem) {
+    if (!autoPlay) return;
+    const lineOrder = new Map(orderedLines.map((line, index) => [line.id, index]));
+    const playable = cells
+      .filter((candidate) => candidate.reference_id === cell.reference_id && candidate.current_result)
+      .sort((left, right) => (lineOrder.get(left.line_id) ?? 0) - (lineOrder.get(right.line_id) ?? 0));
+    const next = playable[playable.findIndex((candidate) => candidate.id === cell.id) + 1];
+    if (next) void audioElements.current.get(next.id)?.play();
+  }
 
   function move(lineId: string, direction: -1 | 1) {
     const ids = orderedLines.map((line) => line.id);
@@ -110,7 +130,7 @@ export function LineMatrix({
                   : null;
                 return (
                   <article
-                    className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}`}
+                    className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${playedCellIds.includes(cell.id) ? " is-played" : ""}`}
                     key={cell.id}
                     onClick={() => onSelectCell(cell.id)}
                   >
@@ -130,8 +150,23 @@ export function LineMatrix({
                         ＋ リスト
                       </button>
                     </div>
-                    {audioUrl ? <audio controls preload="none" src={audioUrl} /> : <div className="audio-placeholder">No take yet</div>}
-                    {cell.error_message && <p className="cell-error">{cell.error_message}</p>}
+                    {audioUrl ? (
+                      <audio
+                        ref={(element) => {
+                          if (element) audioElements.current.set(cell.id, element);
+                          else audioElements.current.delete(cell.id);
+                        }}
+                        aria-label={`音声: ${reference.label} / ${line.text}`}
+                        controls
+                        preload="none"
+                        src={audioUrl}
+                        onPlay={() => markPlayed(cell.id)}
+                        onEnded={() => playNextInReference(cell)}
+                      />
+                    ) : <div className="audio-placeholder">音声はまだありません</div>}
+                    <div className="cell-message-slot">
+                      {cell.error_message ? <p className="cell-error">{cell.error_message}</p> : null}
+                    </div>
                     <button
                       type="button"
                       className="regen-button"
@@ -142,7 +177,7 @@ export function LineMatrix({
                         onRegenerate(cell.id);
                       }}
                     >
-                      Regenerate
+                      再生成
                     </button>
                   </article>
                 );

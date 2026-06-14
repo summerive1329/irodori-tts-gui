@@ -166,6 +166,7 @@ export function ProjectEditor({
             lines={project.lines}
             references={project.references}
             cells={project.cells}
+            autoPlay={autoPlay}
             selectedCellId={selectedCellId}
             onSelectCell={onSelectCell}
             onRegenerate={(cellId) => onRegenerate(cellId, null)}

@@ -185,14 +185,14 @@ body::before {
 @keyframes pulse { to { opacity: 0.2; transform: scale(1.5); } }
 
 .matrix-scroll { overflow: auto; border: 1px solid var(--line); background: rgba(246, 243, 233, 0.72); }
-.matrix { min-width: max(780px, calc(330px + var(--reference-count) * 250px)); }
+.matrix { min-width: max(920px, calc(440px + var(--reference-count) * 288px)); }
 .matrix-corner, .matrix-reference-header { position: sticky; top: 0; z-index: 5; min-height: 92px; border-bottom: 1px solid var(--line); background: #e3dfd2; }
 .matrix-corner { display: none; }
-.matrix-reference-header { display: inline-flex; flex-direction: column; justify-content: center; width: 250px; padding: 12px 16px; border-left: 1px solid var(--line); }
-.matrix-reference-header:first-of-type { margin-left: 330px; }
+.matrix-reference-header { display: inline-flex; flex-direction: column; justify-content: center; width: 288px; padding: 12px 16px; border-left: 1px solid var(--line); }
+.matrix-reference-header:first-of-type { margin-left: 440px; }
 .matrix-reference-header small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .column-add-button { align-self: flex-start; margin-top: 8px; border: 0; border-bottom: 1px solid var(--green); padding: 2px 0; background: transparent; color: var(--green); cursor: pointer; font-size: 10px; font-weight: 800; }
-.matrix-row { display: grid; grid-template-columns: 330px 1fr; border-bottom: 1px solid var(--line); }
+.matrix-row { display: grid; grid-template-columns: 440px 1fr; border-bottom: 1px solid var(--line); }
 .matrix-row:last-child { border-bottom: 0; }
 .line-editor { position: sticky; left: 0; z-index: 3; display: grid; grid-template-columns: 35px 1fr auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); padding: 14px; background: var(--paper); }
 .line-number { color: var(--orange); font: 600 20px/1 "Iowan Old Style", serif; }
@@ -200,9 +200,11 @@ body::before {
 .line-order-controls { display: flex; flex-direction: column; gap: 4px; }
 .line-order-controls button { width: 27px; height: 27px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
 .line-order-controls button:disabled { opacity: 0.2; }
-.line-cells { display: grid; grid-template-columns: repeat(var(--reference-count), 250px); }
+.line-cells { display: grid; grid-template-columns: repeat(var(--reference-count), 288px); }
 .result-cell { display: grid; grid-template-rows: auto 1fr auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; }
 .result-cell.is-focused { box-shadow: inset 0 0 0 2px var(--orange); background: #fffaf0; }
+.result-cell.is-played { background: rgba(211, 224, 215, 0.72); }
+.result-cell.is-played::after { content: "再生済み"; justify-self: start; color: var(--green); font-size: 9px; font-weight: 800; letter-spacing: 0.08em; }
 .cell-topline { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
 .status-ready .status-dot { background: var(--green); }
@@ -213,6 +215,7 @@ body::before {
 .audio-placeholder { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--muted); font-size: 11px; }
 .regen-button { justify-self: end; border: 0; border-bottom: 1px solid var(--ink); padding: 3px 0; background: transparent; cursor: pointer; font-size: 11px; font-weight: 800; }
 .cell-error { margin: 0; color: var(--danger); font-size: 11px; }
+.cell-message-slot { min-height: 1.5rem; }
 .empty-state { display: grid; place-items: center; min-height: 420px; text-align: center; }
 .empty-state span { color: var(--orange); font: 600 42px/1 "Iowan Old Style", serif; }
 .empty-state h2 { margin: 8px 0; font: 500 34px/1 "Iowan Old Style", serif; }

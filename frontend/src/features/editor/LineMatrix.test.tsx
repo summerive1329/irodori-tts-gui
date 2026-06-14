@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,77 +25,96 @@ const cells: CellItem[] = references.map((reference, index) => ({
   },
 }));
 
+function matrixProps() {
+  return {
+    projectId: "project-1",
+    lines,
+    references,
+    cells,
+    autoPlay: false,
+    selectedCellId: null,
+    onSelectCell: vi.fn(),
+    onRegenerate: vi.fn(),
+    onAppendToPlaylist: vi.fn(),
+    onAppendReferenceColumn: vi.fn(),
+    onEditLine: vi.fn(),
+    onReorder: vi.fn(),
+  };
+}
+
 describe("LineMatrix", () => {
   it("regenerates only the chosen line and reference cell", async () => {
     const user = userEvent.setup();
-    const onRegenerate = vi.fn();
-    render(
-      <LineMatrix
-        projectId="project-1"
-        lines={lines}
-        references={references}
-        cells={cells}
-        selectedCellId={null}
-        onSelectCell={() => undefined}
-        onRegenerate={onRegenerate}
-        onAppendToPlaylist={() => undefined}
-        onAppendReferenceColumn={() => undefined}
-        onEditLine={() => undefined}
-        onReorder={() => undefined}
-      />,
-    );
+    const props = matrixProps();
+    render(<LineMatrix {...props} />);
 
     await user.click(screen.getByRole("button", { name: "Regenerate toru / hello" }));
 
-    expect(onRegenerate).toHaveBeenCalledOnce();
-    expect(onRegenerate).toHaveBeenCalledWith("cell-1");
+    expect(props.onRegenerate).toHaveBeenCalledOnce();
+    expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");
   });
 
   it("adds one exact cell to the export playlist", async () => {
     const user = userEvent.setup();
-    const onAppendToPlaylist = vi.fn();
-    render(
-      <LineMatrix
-        projectId="project-1"
-        lines={lines}
-        references={references}
-        cells={cells}
-        selectedCellId={null}
-        onSelectCell={() => undefined}
-        onRegenerate={() => undefined}
-        onAppendToPlaylist={onAppendToPlaylist}
-        onAppendReferenceColumn={() => undefined}
-        onEditLine={() => undefined}
-        onReorder={() => undefined}
-      />,
-    );
+    const props = matrixProps();
+    render(<LineMatrix {...props} />);
 
     await user.click(screen.getByRole("button", { name: "リストに追加: lize / hello" }));
 
-    expect(onAppendToPlaylist).toHaveBeenCalledWith("cell-2");
+    expect(props.onAppendToPlaylist).toHaveBeenCalledWith("cell-2");
   });
 
   it("adds a whole reference column from the header", async () => {
     const user = userEvent.setup();
-    const onAppendReferenceColumn = vi.fn();
-    render(
-      <LineMatrix
-        projectId="project-1"
-        lines={lines}
-        references={references}
-        cells={cells}
-        selectedCellId={null}
-        onSelectCell={() => undefined}
-        onRegenerate={() => undefined}
-        onAppendToPlaylist={() => undefined}
-        onAppendReferenceColumn={onAppendReferenceColumn}
-        onEditLine={() => undefined}
-        onReorder={() => undefined}
-      />,
-    );
+    const props = matrixProps();
+    render(<LineMatrix {...props} />);
 
     await user.click(screen.getByRole("button", { name: "toruを上から追加" }));
 
-    expect(onAppendReferenceColumn).toHaveBeenCalledWith("ref-1");
+    expect(props.onAppendReferenceColumn).toHaveBeenCalledWith("ref-1");
+  });
+
+  it("keeps an older take playable while the cell is generating", () => {
+    const props = matrixProps();
+    props.cells = [{ ...cells[0], status: "generating" }, cells[1]];
+
+    const { container } = render(<LineMatrix {...props} />);
+
+    expect(screen.getByText("生成中")).toBeInTheDocument();
+    expect(container.querySelector('audio[src*="cells/0.wav"]')).toBeInTheDocument();
+  });
+
+  it("marks a cell as played when its audio starts", () => {
+    const props = matrixProps();
+    render(<LineMatrix {...props} />);
+
+    const audio = screen.getByLabelText("音声: toru / hello");
+    fireEvent.play(audio);
+
+    expect(audio.closest("article")).toHaveClass("is-played");
+  });
+
+  it("auto-plays only the next cell in the same reference", () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const twoLines: LineItem[] = [
+      { id: "line-1", text: "one", order_index: 0 },
+      { id: "line-2", text: "two", order_index: 1 },
+    ];
+    const sameReferenceCells: CellItem[] = twoLines.map((line, index) => ({
+      ...cells[0],
+      id: `same-ref-${index}`,
+      line_id: line.id,
+      current_result: { ...cells[0].current_result!, audio_path: `cells/same-${index}.wav` },
+    }));
+    const props = matrixProps();
+    props.lines = twoLines;
+    props.references = [references[0]];
+    props.cells = sameReferenceCells;
+    props.autoPlay = true;
+    render(<LineMatrix {...props} />);
+
+    fireEvent.ended(screen.getByLabelText("音声: toru / one"));
+
+    expect(play).toHaveBeenCalledOnce();
   });
 });
