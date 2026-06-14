@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "./types";
+import { ApiError } from "./api/client";
 
 const apiMocks = vi.hoisted(() => ({
   createProject: vi.fn(),
@@ -65,5 +66,23 @@ describe("App", () => {
 
     expect(await screen.findByDisplayValue("Voice Session 01")).toBeInTheDocument();
     expect(apiMocks.getProject).toHaveBeenCalledWith("project-1");
+  });
+
+  it("keeps playlist controls visible after a project route reload", async () => {
+    window.history.pushState({}, "", "/projects/project-1");
+
+    render(<AppRouter />);
+
+    expect(await screen.findByRole("heading", { name: "書き出しリスト" })).toBeInTheDocument();
+  });
+
+  it("returns to the project list when a routed project is missing", async () => {
+    window.history.pushState({}, "", "/projects/missing");
+    apiMocks.getProject.mockRejectedValue(new ApiError(404, "Project not found"));
+
+    render(<AppRouter />);
+
+    expect(await screen.findByRole("heading", { name: "新しいプロジェクト" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/");
   });
 });

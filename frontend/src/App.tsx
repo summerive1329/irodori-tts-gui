@@ -23,7 +23,7 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     setBusy(true);
-    setError(null);
+    if (projectId) setError(null);
     setSelectedCellId(null);
     setExportUrl(null);
     setJob(null);
@@ -42,7 +42,12 @@ export function App() {
 
     request
       .catch((reason) => {
-        if (!cancelled) showError(reason);
+        if (cancelled) return;
+        showError(reason);
+        if (projectId && reason instanceof api.ApiError && reason.status === 404) {
+          setProject(null);
+          navigate("/", { replace: true });
+        }
       })
       .finally(() => {
         if (!cancelled) setBusy(false);
