@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Thread
 from threading import Event
 from time import monotonic, sleep
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.models.project import Project
+from app.services.project_store import ProjectStore
 from app.services.runtime_manager import GenerationArtifact, PreparedReference
 
 
@@ -592,6 +594,72 @@ def test_failed_regeneration_on_same_cell_preserves_latest_playback_state(tmp_pa
     assert final_cell["display_status"] == "error"
     assert final_cell["current_result"] == original_audio
     assert final_cell["error_message"] == "boom"
+
+
+def test_playback_event_survives_concurrent_project_update(tmp_path: Path) -> None:
+    client = _client(tmp_path, FakeRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+
+    original_save = ProjectStore.save
+    save_started = Event()
+    allow_save = Event()
+
+    def blocking_save(self, project):
+        if project.id == project_id and project.name == "renamed" and not save_started.is_set():
+            save_started.set()
+            if not allow_save.wait(timeout=3):
+                raise TimeoutError("Timed out waiting to release blocked project save")
+        return original_save(self, project)
+
+    update_response: dict[str, object] = {}
+    playback_response: dict[str, object] = {}
+
+    def run_update() -> None:
+        update_response["response"] = client.patch(
+            f"/api/projects/{project_id}",
+            json={"name": "renamed"},
+        )
+
+    def run_playback() -> None:
+        playback_response["response"] = client.post(
+            f"/api/projects/{project_id}/cells/{cell_id}/playback-events"
+        )
+
+    with patch("app.services.project_store.ProjectStore.save", autospec=True, side_effect=blocking_save):
+        update_thread = Thread(target=run_update, daemon=True)
+        playback_thread = Thread(target=run_playback, daemon=True)
+        update_thread.start()
+        assert save_started.wait(timeout=1)
+
+        playback_thread.start()
+
+        allow_save.set()
+        update_thread.join(timeout=3)
+        playback_thread.join(timeout=3)
+
+    updated = update_response["response"]
+    played = playback_response["response"]
+    assert updated.status_code == 200
+    assert played.status_code == 200
+    final_project = client.get(f"/api/projects/{project_id}").json()
+    final_cell = final_project["cells"][0]
+
+    assert final_project["name"] == "renamed"
+    assert final_cell["playback_state"] == "played"
+    assert final_cell["display_status"] == "played"
 
 
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:
