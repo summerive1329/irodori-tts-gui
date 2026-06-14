@@ -163,6 +163,35 @@ def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -
     ]
 
 
+def test_playlist_flow_supports_column_append_and_wav_export(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    project = client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    ).json()
+    reference_id = project["references"][0]["id"]
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+
+    job = _wait_for_job(client, project_id, started["id"])
+    playlist = client.post(
+        f"/api/projects/{project_id}/playlist/references/{reference_id}"
+    )
+    exported = client.post(f"/api/projects/{project_id}/export")
+    media = client.get(exported.json()["media_url"])
+
+    assert job["status"] == "completed"
+    assert len(playlist.json()["export_playlist"]) == 2
+    assert exported.status_code == 200
+    assert media.status_code == 200
+    assert media.headers["content-type"].startswith("audio/")
+
+
 def test_insert_line_and_export_text_use_current_line_order(tmp_path: Path) -> None:
     client = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
