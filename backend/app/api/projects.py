@@ -369,7 +369,7 @@ def create_projects_router(
     def export_project(project_id: str) -> ExportResponse:
         project = load_project(project_id)
         try:
-            output_path = export_service.export_selected(project)
+            output_path = export_service.export_playlist(project)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         relative_path = output_path.relative_to(store.base_dir).as_posix()
