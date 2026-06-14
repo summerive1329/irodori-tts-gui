@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.projects import create_projects_router
 from app.services.export_service import ExportService
 from app.services.generation_service import GenerationService
+from app.services.job_registry import JobRegistry
 from app.services.line_import_service import LineImportService
 from app.services.project_store import ProjectStore
 from app.services.reference_service import ReferenceService
@@ -40,6 +41,7 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
             reference_service=ReferenceService(resolved_data_dir),
             generation_service=GenerationService(runtime_backend, resolved_data_dir),
             export_service=ExportService(resolved_data_dir),
+            job_registry=JobRegistry(),
         )
     )
     app.mount("/media", StaticFiles(directory=resolved_data_dir, check_dir=False), name="media")

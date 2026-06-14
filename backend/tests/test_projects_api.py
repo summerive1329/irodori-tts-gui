@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import monotonic, sleep
 
 import numpy as np
 import soundfile as sf
@@ -30,6 +31,18 @@ def _wav_bytes(tmp_path: Path) -> bytes:
     path = tmp_path / "upload.wav"
     sf.write(path, np.zeros(800, dtype=np.float32), 16000)
     return path.read_bytes()
+
+
+def _wait_for_job(client: TestClient, project_id: str, job_id: str) -> dict:
+    deadline = monotonic() + 3
+    while monotonic() < deadline:
+        response = client.get(f"/api/projects/{project_id}/jobs/{job_id}")
+        assert response.status_code == 200
+        job = response.json()
+        if job["status"] != "running":
+            return job
+        sleep(0.01)
+    raise AssertionError("Generation job did not finish")
 
 
 def test_projects_are_persisted_and_listed(tmp_path: Path) -> None:
@@ -73,7 +86,7 @@ def test_line_import_appends_files_and_reference_upload_creates_matrix(tmp_path:
     assert len(uploaded.json()["cells"]) == 3
 
 
-def test_generate_regenerate_select_and_export_flow(tmp_path: Path) -> None:
+def test_generate_and_regenerate_jobs_update_only_target_cells(tmp_path: Path) -> None:
     runtime_manager = FakeRuntimeManager()
     client = _client(tmp_path, runtime_manager)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
@@ -84,38 +97,92 @@ def test_generate_regenerate_select_and_export_flow(tmp_path: Path) -> None:
         files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
     )
 
-    generated = client.post(
-        f"/api/projects/{project_id}/generate/all",
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
         json={"only_missing": True},
     )
-    assert generated.status_code == 200
-    assert runtime_manager.generated_cells == 2
-    assert all(cell["status"] == "ready" for cell in generated.json()["cells"])
+    assert started.status_code == 202
+    assert started.json()["status"] == "running"
 
-    first_cell_id = generated.json()["cells"][0]["id"]
+    job = _wait_for_job(client, project_id, started.json()["id"])
+    assert job["status"] == "completed"
+    assert runtime_manager.generated_cells == 2
+    generated = client.get(f"/api/projects/{project_id}").json()
+    assert all(cell["status"] == "ready" for cell in generated["cells"])
+
+    first_cell_id = generated["cells"][0]["id"]
+    untouched = generated["cells"][1]["current_result"]
     regenerated = client.post(
-        f"/api/projects/{project_id}/cells/{first_cell_id}/regenerate",
+        f"/api/projects/{project_id}/cells/{first_cell_id}/regeneration-jobs",
         json={"seed": 22},
     )
-    assert regenerated.status_code == 200
+    assert regenerated.status_code == 202
+    _wait_for_job(client, project_id, regenerated.json()["id"])
     assert runtime_manager.generated_cells == 3
+    after = client.get(f"/api/projects/{project_id}").json()
+    assert after["cells"][1]["current_result"] == untouched
 
-    project = regenerated.json()
-    for line in project["lines"]:
-        cell = next(item for item in project["cells"] if item["line_id"] == line["id"])
-        selected = client.put(
-            f"/api/projects/{project_id}/cells/{cell['id']}/selection",
-            json={"selected": True},
-        )
-        assert selected.status_code == 200
 
-    exported = client.post(f"/api/projects/{project_id}/export")
+def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    project = client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    ).json()
+    reference_id = project["references"][0]["id"]
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    ready = client.get(f"/api/projects/{project_id}").json()
+    first_cell_id = ready["cells"][0]["id"]
 
+    first = client.post(
+        f"/api/projects/{project_id}/playlist/items",
+        json={"cell_id": first_cell_id},
+    )
+    second = client.post(
+        f"/api/projects/{project_id}/playlist/items",
+        json={"cell_id": first_cell_id},
+    )
+    column = client.post(
+        f"/api/projects/{project_id}/playlist/references/{reference_id}"
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert [item["cell_id"] for item in column.json()["export_playlist"]] == [
+        first_cell_id,
+        first_cell_id,
+        ready["cells"][0]["id"],
+        ready["cells"][1]["id"],
+    ]
+
+
+def test_insert_line_and_export_text_use_current_line_order(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "three"]})
+
+    inserted = client.post(
+        f"/api/projects/{project_id}/lines/insert",
+        json={"index": 1, "text": "two"},
+    )
+    exported = client.get(f"/api/projects/{project_id}/lines.txt")
+
+    assert inserted.status_code == 200
+    assert [line["text"] for line in sorted(inserted.json()["lines"], key=lambda line: line["order_index"])] == [
+        "one",
+        "two",
+        "three",
+    ]
     assert exported.status_code == 200
-    media_url = exported.json()["media_url"]
-    media = client.get(media_url)
-    assert media.status_code == 200
-    assert media.headers["content-type"].startswith("audio/")
+    assert exported.text == "one\ntwo\nthree"
+    assert "attachment" in exported.headers["content-disposition"]
 
 
 def test_edit_and_reorder_lines(tmp_path: Path) -> None:

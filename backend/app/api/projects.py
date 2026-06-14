@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from threading import Thread
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 
@@ -11,14 +12,17 @@ from app.schemas.api import (
     CreateProjectRequest,
     ExportResponse,
     GenerateAllRequest,
+    InsertLineRequest,
+    PlaylistAppendRequest,
+    PlaylistReorderRequest,
     RegenerateCellRequest,
     ReorderLinesRequest,
-    SelectCellRequest,
     UpdateLineRequest,
     UpdateProjectRequest,
 )
 from app.services.export_service import ExportService
 from app.services.generation_service import GenerationService
+from app.services.job_registry import JobRegistry, JobSnapshot
 from app.services.line_import_service import LineImportService
 from app.services.project_store import ProjectStore
 from app.services.reference_service import ReferenceService
@@ -30,6 +34,7 @@ def create_projects_router(
     reference_service: ReferenceService,
     generation_service: GenerationService,
     export_service: ExportService,
+    job_registry: JobRegistry,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -48,6 +53,18 @@ def create_projects_router(
         for cell in project.cells:
             if cell.id in cell_ids and cell.current_result is not None:
                 (project_dir / cell.current_result.audio_path).unlink(missing_ok=True)
+
+    def start_worker(target) -> None:
+        Thread(target=target, daemon=True).start()
+
+    def persist_job_state(job_id: str, project: Project, cell) -> None:
+        save_project(project)
+        if cell.status == "generating":
+            job_registry.mark_generating(job_id, cell.id)
+        elif cell.status == "ready":
+            job_registry.mark_completed(job_id, cell.id)
+        elif cell.status == "error":
+            job_registry.mark_failed(job_id, cell.error_message or "Generation failed", cell.id)
 
     @router.get("")
     def list_projects() -> list[ProjectSummary]:
@@ -82,6 +99,26 @@ def create_projects_router(
         project = load_project(project_id)
         project.append_lines(payload.texts)
         return save_project(project)
+
+    @router.post("/{project_id}/lines/insert", response_model=Project)
+    def insert_line(project_id: str, payload: InsertLineRequest) -> Project:
+        project = load_project(project_id)
+        try:
+            project.insert_line(payload.index, payload.text)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return save_project(project)
+
+    @router.get("/{project_id}/lines.txt")
+    def export_lines_text(project_id: str) -> Response:
+        project = load_project(project_id)
+        content = "\n".join(line.text for line in project.ordered_lines())
+        filename = f"{project.name.strip() or 'dialogue'}.txt"
+        return Response(
+            content=content,
+            media_type="text/plain; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     @router.post("/{project_id}/lines/import", response_model=Project)
     async def import_lines(
@@ -161,8 +198,149 @@ def create_projects_router(
         (store.project_dir(project.id) / reference.copied_path).unlink(missing_ok=True)
         return save_project(project)
 
+    @router.post(
+        "/{project_id}/generate/jobs",
+        response_model=JobSnapshot,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def start_generate_job(project_id: str, payload: GenerateAllRequest) -> JobSnapshot:
+        project = load_project(project_id)
+        target_cells = [
+            cell
+            for cell in project.cells
+            if not payload.only_missing or cell.current_result is None
+        ]
+        for cell in target_cells:
+            cell.status = "queued"
+            cell.error_message = None
+        save_project(project)
+        kind = "generate_missing" if payload.only_missing else "generate_all"
+        job = job_registry.create(project.id, kind, [cell.id for cell in target_cells])
+
+        def run() -> None:
+            worker_project = load_project(project_id)
+            try:
+                generation_service.generate_all(
+                    worker_project,
+                    only_missing=payload.only_missing,
+                    on_state_change=lambda current, cell: persist_job_state(job.id, current, cell),
+                )
+            except Exception as exc:
+                if job_registry.get(job.id).status == "running":
+                    job_registry.mark_failed(job.id, str(exc))
+                save_project(worker_project)
+
+        if target_cells:
+            start_worker(run)
+        return job
+
+    @router.get("/{project_id}/jobs/{job_id}", response_model=JobSnapshot)
+    def get_job(project_id: str, job_id: str) -> JobSnapshot:
+        load_project(project_id)
+        try:
+            job = job_registry.get(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if job.project_id != project_id:
+            raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+        return job
+
+    @router.post(
+        "/{project_id}/cells/{cell_id}/regeneration-jobs",
+        response_model=JobSnapshot,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def start_regeneration_job(
+        project_id: str,
+        cell_id: str,
+        payload: RegenerateCellRequest,
+    ) -> JobSnapshot:
+        project = load_project(project_id)
+        try:
+            cell = project.get_cell(cell_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        cell.status = "queued"
+        cell.error_message = None
+        save_project(project)
+        job = job_registry.create(project.id, "regenerate_cell", [cell.id])
+
+        def run() -> None:
+            worker_project = load_project(project_id)
+            try:
+                generation_service.regenerate_cell(
+                    worker_project,
+                    cell_id,
+                    seed=payload.seed,
+                    on_state_change=lambda current, changed: persist_job_state(
+                        job.id, current, changed
+                    ),
+                )
+            except Exception as exc:
+                if job_registry.get(job.id).status == "running":
+                    job_registry.mark_failed(job.id, str(exc), cell_id)
+                save_project(worker_project)
+
+        start_worker(run)
+        return job
+
+    @router.post("/{project_id}/playlist/items", response_model=Project)
+    def append_playlist_item(
+        project_id: str,
+        payload: PlaylistAppendRequest,
+    ) -> Project:
+        project = load_project(project_id)
+        try:
+            project.append_playlist_item(payload.cell_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return save_project(project)
+
+    @router.post("/{project_id}/playlist/references/{reference_id}", response_model=Project)
+    def append_reference_column(project_id: str, reference_id: str) -> Project:
+        project = load_project(project_id)
+        if not any(reference.id == reference_id for reference in project.references):
+            raise HTTPException(status_code=404, detail=f"Reference not found: {reference_id}")
+        line_order = {line.id: line.order_index for line in project.lines}
+        cells = sorted(
+            (
+                cell
+                for cell in project.cells
+                if cell.reference_id == reference_id
+                and cell.status == "ready"
+                and cell.current_result is not None
+            ),
+            key=lambda cell: line_order[cell.line_id],
+        )
+        for cell in cells:
+            project.append_playlist_item(cell.id)
+        return save_project(project)
+
+    @router.delete("/{project_id}/playlist/items/{playlist_item_id}", response_model=Project)
+    def remove_playlist_item(project_id: str, playlist_item_id: str) -> Project:
+        project = load_project(project_id)
+        try:
+            project.remove_playlist_item(playlist_item_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return save_project(project)
+
+    @router.put("/{project_id}/playlist/order", response_model=Project)
+    def reorder_playlist(
+        project_id: str,
+        payload: PlaylistReorderRequest,
+    ) -> Project:
+        project = load_project(project_id)
+        try:
+            project.reorder_playlist(payload.playlist_item_ids)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return save_project(project)
+
     @router.post("/{project_id}/generate/all", response_model=Project)
-    def generate_all(project_id: str, payload: GenerateAllRequest) -> Project:
+    def generate_all_legacy(project_id: str, payload: GenerateAllRequest) -> Project:
         project = load_project(project_id)
         try:
             generation_service.generate_all(project, only_missing=payload.only_missing)
@@ -172,7 +350,7 @@ def create_projects_router(
         return save_project(project)
 
     @router.post("/{project_id}/cells/{cell_id}/regenerate", response_model=Project)
-    def regenerate_cell(
+    def regenerate_cell_legacy(
         project_id: str,
         cell_id: str,
         payload: RegenerateCellRequest,
@@ -185,23 +363,6 @@ def create_projects_router(
         except Exception as exc:
             save_project(project)
             raise HTTPException(status_code=500, detail=str(exc)) from exc
-        return save_project(project)
-
-    @router.put("/{project_id}/cells/{cell_id}/selection", response_model=Project)
-    def select_cell(
-        project_id: str,
-        cell_id: str,
-        payload: SelectCellRequest,
-    ) -> Project:
-        project = load_project(project_id)
-        try:
-            if payload.selected:
-                project.select_export_cell(cell_id)
-            else:
-                project.get_cell(cell_id).selected_for_export = False
-                project.touch()
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
         return save_project(project)
 
     @router.post("/{project_id}/export", response_model=ExportResponse)

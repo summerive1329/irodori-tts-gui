@@ -31,6 +31,11 @@ class ReorderLinesRequest(BaseModel):
     line_ids: list[str]
 
 
+class InsertLineRequest(BaseModel):
+    index: int = Field(ge=0)
+    text: str
+
+
 class GenerateAllRequest(BaseModel):
     only_missing: bool = True
 
@@ -39,8 +44,12 @@ class RegenerateCellRequest(BaseModel):
     seed: int | None = None
 
 
-class SelectCellRequest(BaseModel):
-    selected: bool = True
+class PlaylistAppendRequest(BaseModel):
+    cell_id: str
+
+
+class PlaylistReorderRequest(BaseModel):
+    playlist_item_ids: list[str]
 
 
 class ExportResponse(BaseModel):
