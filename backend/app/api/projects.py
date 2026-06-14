@@ -62,22 +62,15 @@ def create_projects_router(
             ),
         )
 
-    def to_stored_project(project: Project) -> Project:
-        if isinstance(project, ProjectWithGenerationProgress):
-            return Project.model_validate(project.model_dump(exclude={"generation_progress"}))
-        return project
-
-    def load_project(project_id: str) -> ProjectWithGenerationProgress:
+    def load_project(project_id: str) -> Project:
         try:
-            project = store.load(project_id)
+            return store.load(project_id)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return attach_generation_progress(project)
 
     def save_project(project: Project) -> ProjectWithGenerationProgress:
-        stored_project = to_stored_project(project)
-        store.save(stored_project)
-        return attach_generation_progress(stored_project)
+        store.save(project)
+        return attach_generation_progress(project)
 
     def remove_cell_audio(project: Project, cell_ids: set[str]) -> None:
         project_dir = store.project_dir(project.id)
@@ -119,7 +112,7 @@ def create_projects_router(
 
     @router.get("/{project_id}", response_model=ProjectWithGenerationProgress)
     def get_project(project_id: str) -> ProjectWithGenerationProgress:
-        return load_project(project_id)
+        return attach_generation_progress(load_project(project_id))
 
     @router.patch("/{project_id}", response_model=ProjectWithGenerationProgress)
     def update_project(

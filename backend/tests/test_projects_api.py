@@ -227,20 +227,29 @@ def test_project_payload_includes_running_job_count_for_generate_and_regenerate(
     assert generated.status_code == 202
     assert runtime_manager.started.wait(timeout=1)
 
-    project = client.get(f"/api/projects/{project_id}").json()
-    assert project["generation_progress"]["running_job_count"] == 1
-    regen = client.post(
-        f"/api/projects/{project_id}/cells/{project['cells'][1]['id']}/regeneration-jobs",
-        json={"seed": 11},
-    )
-    assert regen.status_code == 202
+    regen = None
+    try:
+        project = client.get(f"/api/projects/{project_id}").json()
+        assert project["generation_progress"]["running_job_count"] == 1
+        assert project["generation_progress"]["has_running_jobs"] is True
+        regen = client.post(
+            f"/api/projects/{project_id}/cells/{project['cells'][1]['id']}/regeneration-jobs",
+            json={"seed": 11},
+        )
+        assert regen.status_code == 202
 
-    running = client.get(f"/api/projects/{project_id}").json()
-    assert running["generation_progress"]["running_job_count"] == 2
-    assert sorted(running["generation_progress"]["running_job_kinds"]) == [
-        "generate_all",
-        "regenerate_cell",
-    ]
+        running = client.get(f"/api/projects/{project_id}").json()
+        assert running["generation_progress"]["running_job_count"] == 2
+        assert sorted(running["generation_progress"]["running_job_kinds"]) == [
+            "generate_all",
+            "regenerate_cell",
+        ]
+    finally:
+        runtime_manager.release.set()
+        runtime_manager.allow_regeneration.set()
+        _wait_for_job(client, project_id, generated.json()["id"])
+        if regen is not None:
+            _wait_for_job(client, project_id, regen.json()["id"])
 
 
 def test_project_payload_excludes_completed_jobs_from_running_count(tmp_path: Path) -> None:
