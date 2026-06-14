@@ -64,6 +64,21 @@ class ErrorRuntimeManager(FakeRuntimeManager):
         raise RuntimeError("boom")
 
 
+class FailingRegenerationRuntimeManager(FakeRuntimeManager):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = Event()
+        self.allow_failure = Event()
+
+    def synthesize(self, prepared, text, output_path: Path, parameters) -> GenerationArtifact:
+        if parameters.seed is not None:
+            self.started.set()
+            if not self.allow_failure.wait(timeout=3):
+                raise TimeoutError("Timed out waiting to release failed regeneration")
+            raise RuntimeError("boom")
+        return super().synthesize(prepared, text, output_path, parameters)
+
+
 def _client(tmp_path: Path, runtime_manager: FakeRuntimeManager | None = None) -> TestClient:
     return TestClient(create_app(tmp_path, runtime_manager=runtime_manager or FakeRuntimeManager()))
 
@@ -494,6 +509,89 @@ def test_played_cell_survives_concurrent_regeneration_persistence(tmp_path: Path
     final_second = next(cell for cell in final_project["cells"] if cell["id"] == second_cell_id)
     assert final_first["display_status"] == "played"
     assert final_second["display_status"] == "unplayed"
+
+
+def test_played_cell_survives_failed_regeneration_on_another_cell(tmp_path: Path) -> None:
+    runtime_manager = FailingRegenerationRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    first_cell_id = generated["cells"][0]["id"]
+    second_cell_id = generated["cells"][1]["id"]
+
+    regen = client.post(
+        f"/api/projects/{project_id}/cells/{second_cell_id}/regeneration-jobs",
+        json={"seed": 22},
+    )
+    assert regen.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    played = client.post(f"/api/projects/{project_id}/cells/{first_cell_id}/playback-events")
+    assert played.status_code == 200
+
+    runtime_manager.allow_failure.set()
+    failed = _wait_for_job(client, project_id, regen.json()["id"])
+    final_project = client.get(f"/api/projects/{project_id}").json()
+    final_first = next(cell for cell in final_project["cells"] if cell["id"] == first_cell_id)
+    final_second = next(cell for cell in final_project["cells"] if cell["id"] == second_cell_id)
+
+    assert failed["status"] == "failed"
+    assert final_first["playback_state"] == "played"
+    assert final_first["display_status"] == "played"
+    assert final_second["display_status"] == "error"
+    assert final_second["current_result"] is not None
+
+
+def test_failed_regeneration_on_same_cell_preserves_latest_playback_state(tmp_path: Path) -> None:
+    runtime_manager = FailingRegenerationRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+    original_audio = generated["cells"][0]["current_result"]
+
+    regen = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regeneration-jobs",
+        json={"seed": 22},
+    )
+    assert regen.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    played = client.post(f"/api/projects/{project_id}/cells/{cell_id}/playback-events")
+    assert played.status_code == 200
+
+    runtime_manager.allow_failure.set()
+    failed = _wait_for_job(client, project_id, regen.json()["id"])
+    final_project = client.get(f"/api/projects/{project_id}").json()
+    final_cell = final_project["cells"][0]
+
+    assert failed["status"] == "failed"
+    assert final_cell["playback_state"] == "played"
+    assert final_cell["display_status"] == "error"
+    assert final_cell["current_result"] == original_audio
+    assert final_cell["error_message"] == "boom"
 
 
 def test_playlist_endpoints_allow_duplicates_and_column_append(tmp_path: Path) -> None:

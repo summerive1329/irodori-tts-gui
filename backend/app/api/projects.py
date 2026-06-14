@@ -104,7 +104,8 @@ def create_projects_router(
             latest_cell.status = cell.status
             latest_cell.error_message = cell.error_message
             latest_cell.current_result = cell.current_result
-            latest_cell.playback_state = cell.playback_state
+            if cell.status == "ready":
+                latest_cell.playback_state = cell.playback_state
 
         with get_project_write_lock(project.id):
             latest_project = store.load(project.id)
@@ -290,7 +291,6 @@ def create_projects_router(
                 except Exception as exc:
                     if job_registry.get(job.id).status == "running":
                         job_registry.mark_failed(job.id, str(exc))
-                    save_project(worker_project)
 
         if target_cell_ids:
             start_worker(run)
@@ -339,7 +339,6 @@ def create_projects_router(
                 except Exception as exc:
                     if job_registry.get(job.id).status == "running":
                         job_registry.mark_failed(job.id, str(exc), cell_id)
-                    save_project(worker_project)
 
         start_worker(run)
         return job
