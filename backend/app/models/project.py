@@ -33,14 +33,22 @@ class LineItem(BaseModel):
     order_index: int
 
 
+class ExportPlaylistItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    cell_id: str
+    line_id: str
+    reference_id: str
+    label: str
+    created_at: datetime = Field(default_factory=_now)
+
+
 class Cell(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     line_id: str
     reference_id: str
-    status: Literal["idle", "generating", "ready", "error"] = "idle"
+    status: Literal["idle", "queued", "generating", "ready", "error"] = "idle"
     error_message: str | None = None
     current_result: CellResult | None = None
-    selected_for_export: bool = False
 
 
 class ProjectSummary(BaseModel):
@@ -65,7 +73,7 @@ class Project(BaseModel):
     references: list[ReferenceItem] = Field(default_factory=list)
     lines: list[LineItem] = Field(default_factory=list)
     cells: list[Cell] = Field(default_factory=list)
-    export_order: list[str] = Field(default_factory=list)
+    export_playlist: list[ExportPlaylistItem] = Field(default_factory=list)
 
     @classmethod
     def create(cls, name: str) -> Project:
@@ -89,7 +97,6 @@ class Project(BaseModel):
                 continue
             line = LineItem(text=text, order_index=next_index)
             self.lines.append(line)
-            self.export_order.append(line.id)
             added.append(line)
             next_index += 1
             for reference in self.references:
@@ -97,6 +104,23 @@ class Project(BaseModel):
         if added:
             self.touch()
         return added
+
+    def insert_line(self, index: int, text: str) -> LineItem:
+        clean_text = text.strip()
+        if not clean_text:
+            raise ValueError("Line text is required")
+        if index < 0 or index > len(self.lines):
+            raise ValueError("Line index is out of range")
+        for line in self.lines:
+            if line.order_index >= index:
+                line.order_index += 1
+        inserted = LineItem(text=clean_text, order_index=index)
+        self.lines.append(inserted)
+        for reference in self.references:
+            self.cells.append(Cell(line_id=inserted.id, reference_id=reference.id))
+        self._reindex_lines()
+        self.touch()
+        return inserted
 
     def add_reference(
         self,
@@ -132,6 +156,38 @@ class Project(BaseModel):
                 return cell
         raise KeyError(f"Cell not found: {cell_id}")
 
+    def append_playlist_item(self, cell_id: str) -> ExportPlaylistItem:
+        cell = self.get_cell(cell_id)
+        if cell.current_result is None:
+            raise ValueError("Only generated cells can be added to the export playlist")
+        line = next(item for item in self.lines if item.id == cell.line_id)
+        reference = next(item for item in self.references if item.id == cell.reference_id)
+        playlist_item = ExportPlaylistItem(
+            cell_id=cell.id,
+            line_id=line.id,
+            reference_id=reference.id,
+            label=f"{reference.label} / {line.text[:24]}",
+        )
+        self.export_playlist.append(playlist_item)
+        self.touch()
+        return playlist_item
+
+    def remove_playlist_item(self, playlist_item_id: str) -> None:
+        if not any(item.id == playlist_item_id for item in self.export_playlist):
+            raise KeyError(f"Playlist item not found: {playlist_item_id}")
+        self.export_playlist = [
+            item for item in self.export_playlist if item.id != playlist_item_id
+        ]
+        self.touch()
+
+    def reorder_playlist(self, ordered_item_ids: list[str]) -> None:
+        current_ids = {item.id for item in self.export_playlist}
+        if len(ordered_item_ids) != len(current_ids) or set(ordered_item_ids) != current_ids:
+            raise ValueError("Playlist order must contain every item exactly once")
+        by_id = {item.id: item for item in self.export_playlist}
+        self.export_playlist = [by_id[item_id] for item_id in ordered_item_ids]
+        self.touch()
+
     def update_line(self, line_id: str, text: str) -> LineItem:
         clean_text = text.strip()
         if not clean_text:
@@ -141,23 +197,30 @@ class Project(BaseModel):
             raise KeyError(f"Line not found: {line_id}")
         if line.text != clean_text:
             line.text = clean_text
+            affected_cell_ids = {
+                cell.id for cell in self.cells if cell.line_id == line_id
+            }
             for cell in self.cells:
                 if cell.line_id == line_id:
                     cell.status = "idle"
                     cell.error_message = None
                     cell.current_result = None
-                    cell.selected_for_export = False
+            self.export_playlist = [
+                item for item in self.export_playlist if item.cell_id not in affected_cell_ids
+            ]
             self.touch()
         return line
 
     def remove_line(self, line_id: str) -> None:
         if not any(line.id == line_id for line in self.lines):
             raise KeyError(f"Line not found: {line_id}")
+        removed_cell_ids = {cell.id for cell in self.cells if cell.line_id == line_id}
         self.lines = [line for line in self.lines if line.id != line_id]
         self.cells = [cell for cell in self.cells if cell.line_id != line_id]
-        self.export_order = [item for item in self.export_order if item != line_id]
-        for index, line in enumerate(self.ordered_lines()):
-            line.order_index = index
+        self.export_playlist = [
+            item for item in self.export_playlist if item.cell_id not in removed_cell_ids
+        ]
+        self._reindex_lines()
         self.touch()
 
     def remove_reference(self, reference_id: str) -> ReferenceItem:
@@ -167,17 +230,16 @@ class Project(BaseModel):
         )
         if reference is None:
             raise KeyError(f"Reference not found: {reference_id}")
+        removed_cell_ids = {
+            cell.id for cell in self.cells if cell.reference_id == reference_id
+        }
         self.references = [item for item in self.references if item.id != reference_id]
         self.cells = [cell for cell in self.cells if cell.reference_id != reference_id]
+        self.export_playlist = [
+            item for item in self.export_playlist if item.cell_id not in removed_cell_ids
+        ]
         self.touch()
         return reference
-
-    def select_export_cell(self, cell_id: str) -> None:
-        target = self.get_cell(cell_id)
-        for cell in self.cells:
-            if cell.line_id == target.line_id:
-                cell.selected_for_export = cell.id == target.id
-        self.touch()
 
     def reorder_lines(self, ordered_line_ids: list[str]) -> None:
         current_ids = {line.id for line in self.lines}
@@ -186,5 +248,8 @@ class Project(BaseModel):
         by_id = {line.id: line for line in self.lines}
         for index, line_id in enumerate(ordered_line_ids):
             by_id[line_id].order_index = index
-        self.export_order = list(ordered_line_ids)
         self.touch()
+
+    def _reindex_lines(self) -> None:
+        for index, line in enumerate(self.ordered_lines()):
+            line.order_index = index
