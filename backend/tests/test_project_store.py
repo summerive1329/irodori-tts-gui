@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Event, Thread
 
 from app.models.project import Project
 from app.services.project_store import ProjectStore
@@ -27,3 +28,54 @@ def test_project_store_raises_for_unknown_project(tmp_path: Path) -> None:
         assert "missing" in str(exc)
     else:
         raise AssertionError("Expected FileNotFoundError")
+
+
+def test_project_store_serializes_reads_and_writes(tmp_path: Path, monkeypatch) -> None:
+    store = ProjectStore(tmp_path)
+    project = Project.create("demo")
+    store.save(project)
+
+    read_started = Event()
+    release_read = Event()
+    write_started = Event()
+    errors: list[BaseException] = []
+    original_read_text = Path.read_text
+    original_write_text = Path.write_text
+
+    def blocking_read(path: Path, *args, **kwargs) -> str:
+        if path.name == "project.json":
+            read_started.set()
+            if not release_read.wait(timeout=1):
+                raise TimeoutError("Timed out waiting to release project read")
+        return original_read_text(path, *args, **kwargs)
+
+    def observed_write(path: Path, *args, **kwargs) -> int:
+        if path.name == "project.json.tmp":
+            write_started.set()
+        return original_write_text(path, *args, **kwargs)
+
+    def capture(operation) -> None:
+        try:
+            operation()
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(Path, "read_text", blocking_read)
+    monkeypatch.setattr(Path, "write_text", observed_write)
+
+    reader = Thread(target=lambda: capture(lambda: store.load(project.id)))
+    writer = Thread(target=lambda: capture(lambda: store.save(project)))
+    reader.start()
+    assert read_started.wait(timeout=1)
+    writer.start()
+
+    try:
+        assert not write_started.wait(timeout=0.1)
+    finally:
+        release_read.set()
+        reader.join(timeout=1)
+        writer.join(timeout=1)
+
+    assert not reader.is_alive()
+    assert not writer.is_alive()
+    assert errors == []
