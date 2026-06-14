@@ -36,9 +36,14 @@ Project JSON, uploaded references, generated cells and exports are stored under
 - Paste dialogue or drop `.txt`, `.md`, `.csv` or `.tsv` files. Non-empty lines
   are appended without replacing existing dialogue.
 - Generate missing cells. The backend keeps the Irodori model in memory and
-  reuses one encoded latent per reference audio.
+  reuses one encoded latent per reference audio while processing the batch.
 - Regenerate only the exact `dialogue x reference` cell that needs another take.
-- Select one result per dialogue row, reorder the rows, then export a joined WAV.
+- Add any generated cell to the export playlist, including the same cell more
+  than once, or append one complete reference column from top to bottom.
+- Drag dialogue lines or playlist items into the required order, then export the
+  playlist as one joined WAV.
+- Insert a new line at any row boundary and export the current script as `.txt`.
+- Open `/projects/<project-id>` directly. Reloading keeps the same project open.
 
 ## Development
 
