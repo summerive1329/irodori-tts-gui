@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 
-import type { CellItem, LineItem, ReferenceItem } from "../../types";
+import type { CellDisplayStatus, CellItem, LineItem, ReferenceItem } from "../../types";
 
 type Props = {
   projectId: string;
@@ -24,11 +24,11 @@ type Props = {
   onResizeDialogueColumn?: (width: number) => void;
 };
 
-const statusLabel: Record<CellItem["status"], string> = {
-  idle: "未生成",
-  queued: "待機中",
+const displayStatusLabel: Record<CellDisplayStatus, string> = {
+  not_generated: "未生成",
   generating: "生成中",
-  ready: "生成済み",
+  unplayed: "未再生",
+  played: "再生済み",
   error: "エラー",
 };
 
@@ -255,17 +255,17 @@ export function LineMatrix({
                   const audioUrl = cell.current_result
                     ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
                     : null;
-                  const isPlayed = playedCellIds.includes(cell.id);
-                  const regenerateLocked = cell.status === "generating" || (busy && !allowRegenerateWhileBusy);
+                  const isPlayed = cell.display_status === "played" || playedCellIds.includes(cell.id);
+                  const regenerateLocked = cell.display_status === "generating" || (busy && !allowRegenerateWhileBusy);
                   return (
                     <article
-                      className={`result-cell status-${cell.status}${selectedCellId === cell.id ? " is-focused" : ""}${isPlayed ? " is-played" : " is-unplayed"}`}
+                      className={`result-cell status-${cell.display_status}${selectedCellId === cell.id ? " is-focused" : ""}${isPlayed ? " is-played" : " is-unplayed"}`}
                       key={cell.id}
                       onClick={() => onSelectCell(cell.id)}
                     >
                       <div className="cell-topline">
                         <span className="status-dot" />
-                        <span>{statusLabel[cell.status]}</span>
+                        <span>{displayStatusLabel[cell.display_status]}</span>
                         <button
                           type="button"
                           className="playlist-add-button"
@@ -295,9 +295,6 @@ export function LineMatrix({
                       ) : <div className="audio-placeholder">音声はまだありません</div>}
                       <div className="cell-message-slot">
                         {cell.error_message ? <p className="cell-error">{cell.error_message}</p> : null}
-                      </div>
-                      <div className={`cell-play-state${isPlayed ? " is-played" : ""}`} aria-live="polite">
-                        {isPlayed ? "再生済み" : "未再生"}
                       </div>
                       <button
                         type="button"

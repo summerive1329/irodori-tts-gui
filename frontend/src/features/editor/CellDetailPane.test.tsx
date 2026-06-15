@@ -14,6 +14,7 @@ describe("CellDetailPane", () => {
       line_id: "line-1",
       reference_id: "ref-1",
       status: "ready",
+      display_status: "unplayed",
       error_message: null,
       current_result: null,
     };

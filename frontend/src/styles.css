@@ -11,6 +11,8 @@
   --line: rgba(32, 36, 31, 0.17);
   --green: #315a4a;
   --green-soft: #d3e0d7;
+  --blue: #2d79c7;
+  --blue-soft: #d6e7fb;
   --orange: #e16939;
   --orange-soft: #f7d7c7;
   --danger: #9f3d31;
@@ -191,7 +193,7 @@ body::before {
 .generation-console { display: grid; grid-template-columns: auto minmax(190px, 1fr) auto; gap: 14px; align-items: center; margin-bottom: 16px; border: 1px solid var(--line); padding: 12px; background: var(--paper); }
 .generation-console-actions { display: flex; gap: 8px; }
 .generation-progress { display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--line); padding-left: 16px; }
-.generation-progress.is-running .status-dot { background: var(--orange); animation: pulse 1s infinite alternate; }
+.generation-progress.is-running .status-dot { background: var(--blue); animation: pulse 1s infinite alternate; }
 .generation-progress strong { display: block; margin-top: 3px; font-size: 12px; }
 .autoplay-toggle { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 800; }
 .work-indicator { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; border-left: 3px solid var(--orange); padding: 10px 14px; background: var(--orange-soft); font-size: 12px; }
@@ -266,12 +268,19 @@ body::before {
 .drop-hint { position: absolute; right: 12px; color: var(--green); font-size: 10px; font-weight: 800; }
 .result-cell { display: grid; grid-template-rows: auto auto minmax(1.5rem, auto) auto auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; }
 .result-cell.is-focused { box-shadow: inset 0 0 0 2px var(--orange); background: #fffaf0; }
-.result-cell.is-unplayed { background: rgba(216, 234, 223, 0.96); }
-.result-cell.is-played { background: rgba(243, 239, 231, 0.92); }
+.result-cell.status-not_generated { background: rgba(255, 255, 255, 0.16); }
+.result-cell.status-generating { background: rgba(214, 231, 251, 0.78); }
+.result-cell.status-unplayed,
+.result-cell.is-unplayed { background: rgba(247, 215, 199, 0.68); }
+.result-cell.status-played,
+.result-cell.is-played { background: rgba(216, 234, 223, 0.96); }
+.result-cell.status-error { background: rgba(241, 200, 192, 0.68); }
 .cell-topline { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
-.status-ready .status-dot { background: var(--green); }
-.status-generating .status-dot { background: var(--orange); animation: pulse 1s infinite alternate; }
+.status-not_generated .status-dot { background: #8b8f97; }
+.status-generating .status-dot { background: var(--blue); animation: pulse 1s infinite alternate; }
+.status-unplayed .status-dot { background: var(--orange); }
+.status-played .status-dot { background: var(--green); }
 .status-error .status-dot { background: var(--danger); }
 .playlist-add-button { margin-left: auto; border: 0; border-bottom: 1px solid var(--green); padding: 2px 0; background: transparent; color: var(--green); cursor: pointer; font-size: 10px; font-weight: 800; }
 .playlist-add-button:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -279,14 +288,6 @@ body::before {
 .regen-button { justify-self: end; border: 0; border-bottom: 1px solid var(--ink); padding: 3px 0; background: transparent; cursor: pointer; font-size: 11px; font-weight: 800; }
 .cell-error { margin: 0; color: var(--danger); font-size: 11px; }
 .cell-message-slot { min-height: 1.5rem; }
-.cell-play-state {
-  min-height: 1rem;
-  color: var(--orange);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-.cell-play-state.is-played { color: var(--green); }
 .empty-state { display: grid; place-items: center; min-height: 420px; text-align: center; }
 .empty-state span { color: var(--orange); font: 600 42px/1 "Iowan Old Style", serif; }
 .empty-state h2 { margin: 8px 0; font: 500 34px/1 "Iowan Old Style", serif; }

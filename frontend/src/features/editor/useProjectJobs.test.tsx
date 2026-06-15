@@ -19,6 +19,11 @@ const project: Project = {
   num_steps: 40,
   cfg_scale_text: 3,
   cfg_scale_speaker: 5,
+  generation_progress: {
+    running_job_count: 0,
+    running_job_kinds: [],
+    has_running_jobs: false,
+  },
   references: [],
   lines: [],
   cells: [],

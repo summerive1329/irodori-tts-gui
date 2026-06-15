@@ -15,6 +15,7 @@ const cells: CellItem[] = references.map((reference, index) => ({
   line_id: "line-1",
   reference_id: reference.id,
   status: "ready",
+  display_status: "unplayed",
   error_message: null,
   current_result: {
     audio_path: `cells/${index}.wav`,
@@ -87,7 +88,7 @@ describe("LineMatrix", () => {
 
   it("keeps an older take playable while the cell is generating", () => {
     const props = matrixProps();
-    props.cells = [{ ...cells[0], status: "generating" }, cells[1]];
+    props.cells = [{ ...cells[0], status: "generating", display_status: "generating" }, cells[1]];
 
     const { container } = render(<LineMatrix {...props} />);
 
@@ -187,9 +188,16 @@ describe("LineMatrix", () => {
     expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");
   });
 
-  it("keeps a fixed played badge slot even before playback", () => {
-    render(<LineMatrix {...matrixProps()} />);
+  it("renders backend display status in the top-left slot and removes the lower playback label", () => {
+    const props = matrixProps();
+    props.cells = [
+      { ...cells[0], status: "idle", display_status: "not_generated", current_result: null },
+      { ...cells[1], display_status: "unplayed" },
+    ];
+    render(<LineMatrix {...props} />);
 
-    expect(screen.getAllByText("未再生")).toHaveLength(2);
+    expect(screen.getByText("未生成")).toBeInTheDocument();
+    expect(screen.getAllByText("未再生")).toHaveLength(1);
+    expect(screen.queryByText("再生済み")).not.toBeInTheDocument();
   });
 });

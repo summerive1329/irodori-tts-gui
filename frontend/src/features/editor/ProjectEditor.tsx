@@ -166,6 +166,7 @@ export function ProjectEditor({
 
           <GenerationConsole
             job={job}
+            generationProgress={project.generation_progress}
             busy={busy}
             canGenerate={canGenerate}
             autoPlay={autoPlay}
