@@ -44,6 +44,7 @@ type Props = {
   onReorder: (lineIds: string[]) => void;
   onGenerate: (onlyMissing: boolean) => void;
   onRegenerate: (cellId: string, seed: number | null) => void;
+  onMarkCellPlayed?: (cellId: string) => void;
   onAppendToPlaylist: (cellId: string) => void;
   onAppendReferenceColumn: (referenceId: string) => void;
   onRemovePlaylistItem: (playlistItemId: string) => void;
@@ -72,6 +73,7 @@ export function ProjectEditor({
   onReorder,
   onGenerate,
   onRegenerate,
+  onMarkCellPlayed,
   onAppendToPlaylist,
   onAppendReferenceColumn,
   onRemovePlaylistItem,
@@ -188,6 +190,7 @@ export function ProjectEditor({
             onSelectCell={onSelectCell}
             allowRegenerateWhileBusy={allowRegenerateWhileBusy}
             onRegenerate={(cellId) => onRegenerate(cellId, null)}
+            onMarkCellPlayed={onMarkCellPlayed}
             onAppendToPlaylist={onAppendToPlaylist}
             onAppendReferenceColumn={onAppendReferenceColumn}
             onEditLine={onEditLine}

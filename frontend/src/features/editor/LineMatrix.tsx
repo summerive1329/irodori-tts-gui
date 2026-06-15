@@ -15,6 +15,7 @@ type Props = {
   selectedCellId: string | null;
   onSelectCell: (cellId: string) => void;
   onRegenerate: (cellId: string) => void;
+  onMarkCellPlayed?: (cellId: string) => void;
   onAppendToPlaylist: (cellId: string) => void;
   onAppendReferenceColumn: (referenceId: string) => void;
   onEditLine: (lineId: string, text: string) => void;
@@ -45,6 +46,7 @@ export function LineMatrix({
   selectedCellId,
   onSelectCell,
   onRegenerate,
+  onMarkCellPlayed,
   onAppendToPlaylist,
   onAppendReferenceColumn,
   onEditLine,
@@ -289,7 +291,10 @@ export function LineMatrix({
                           controls
                           preload="none"
                           src={audioUrl}
-                          onPlay={() => markPlayed(cell.id)}
+                          onPlay={() => {
+                            markPlayed(cell.id);
+                            onMarkCellPlayed?.(cell.id);
+                          }}
                           onEnded={() => playNextInReference(cell)}
                         />
                       ) : <div className="audio-placeholder">音声はまだありません</div>}

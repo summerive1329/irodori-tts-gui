@@ -37,6 +37,7 @@ function matrixProps() {
     selectedCellId: null,
     onSelectCell: vi.fn(),
     onRegenerate: vi.fn(),
+    onMarkCellPlayed: vi.fn(),
     onAppendToPlaylist: vi.fn(),
     onAppendReferenceColumn: vi.fn(),
     onEditLine: vi.fn(),
@@ -96,7 +97,7 @@ describe("LineMatrix", () => {
     expect(container.querySelector('audio[src*="cells/0.wav"]')).toBeInTheDocument();
   });
 
-  it("marks a cell as played when its audio starts", () => {
+  it("marks a cell as played and reports playback when its audio starts", () => {
     const props = matrixProps();
     render(<LineMatrix {...props} />);
 
@@ -104,6 +105,7 @@ describe("LineMatrix", () => {
     fireEvent.play(audio);
 
     expect(audio.closest("article")).toHaveClass("is-played");
+    expect(props.onMarkCellPlayed).toHaveBeenCalledWith("cell-1");
   });
 
   it("auto-plays only the next cell in the same reference", () => {

@@ -107,6 +107,10 @@ export function startRegenerationJob(
   return request(`/api/projects/${projectId}/cells/${cellId}/regeneration-jobs`, json("POST", { seed }));
 }
 
+export function markCellPlayed(projectId: string, cellId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/cells/${cellId}/playback-events`, { method: "POST" });
+}
+
 export function appendPlaylistItem(projectId: string, cellId: string): Promise<Project> {
   return request(`/api/projects/${projectId}/playlist/items`, json("POST", { cell_id: cellId }));
 }

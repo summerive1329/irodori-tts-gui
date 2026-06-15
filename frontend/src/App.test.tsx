@@ -10,6 +10,7 @@ const apiMocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   getProject: vi.fn(),
   listProjects: vi.fn(),
+  markCellPlayed: vi.fn(),
   startGenerationJob: vi.fn(),
 }));
 
@@ -126,6 +127,47 @@ const projectWithCells: Project = {
   ],
 };
 
+const projectWithUnplayedCell: Project = {
+  ...project,
+  lines: [{ id: "line-1", text: "hello", order_index: 0 }],
+  references: [
+    {
+      id: "ref-1",
+      label: "toru",
+      source_filename: "toru.wav",
+      copied_path: "references/toru.wav",
+      duration_sec: 1,
+    },
+  ],
+  cells: [
+    {
+      id: "cell-1",
+      line_id: "line-1",
+      reference_id: "ref-1",
+      status: "ready",
+      display_status: "unplayed",
+      error_message: null,
+      current_result: {
+        audio_path: "cells/cell-1.wav",
+        sample_rate: 24000,
+        generated_at: "2026-06-14T00:00:00Z",
+        seed: 7,
+        duration_sec: 1,
+      },
+    },
+  ],
+};
+
+const projectWithPlayedCell: Project = {
+  ...projectWithUnplayedCell,
+  cells: [
+    {
+      ...projectWithUnplayedCell.cells[0],
+      display_status: "played",
+    },
+  ],
+};
+
 function RoutedAppHarness() {
   const navigate = useNavigate();
 
@@ -147,6 +189,7 @@ describe("App", () => {
     apiMocks.listProjects.mockResolvedValue([]);
     apiMocks.createProject.mockResolvedValue(project);
     apiMocks.getProject.mockResolvedValue(project);
+    apiMocks.markCellPlayed.mockResolvedValue(projectWithPlayedCell);
     apiMocks.startGenerationJob.mockResolvedValue({
       id: "job-started",
       project_id: "project-1",
@@ -295,6 +338,19 @@ describe("App", () => {
     const button = await screen.findByRole("button", { name: "未生成を実行" });
     await waitFor(() => expect(button).toBeDisabled());
     await waitFor(() => expect(jobHookControls.calls.at(-1)).toEqual(["job-existing"]));
+  });
+
+  it("posts playback events when audio playback starts", async () => {
+    window.history.pushState({}, "", "/projects/project-1");
+    apiMocks.getProject.mockResolvedValue(projectWithUnplayedCell);
+    apiMocks.markCellPlayed.mockResolvedValue(projectWithPlayedCell);
+
+    render(<AppRouter />);
+
+    const audio = await screen.findByLabelText("音声: toru / hello");
+    audio.dispatchEvent(new Event("play"));
+
+    await waitFor(() => expect(apiMocks.markCellPlayed).toHaveBeenCalledWith("project-1", "cell-1"));
   });
 
   it("returns to the project list when a routed project is missing", async () => {
