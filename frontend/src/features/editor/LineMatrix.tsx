@@ -55,7 +55,6 @@ export function LineMatrix({
   onReorder,
   onResizeDialogueColumn,
 }: Props) {
-  const [playedCellIds, setPlayedCellIds] = useState<string[]>([]);
   const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
   const [insertionText, setInsertionText] = useState("");
   const [draggedLineId, setDraggedLineId] = useState<string | null>(null);
@@ -88,10 +87,6 @@ export function LineMatrix({
       window.removeEventListener("pointerup", handlePointerUp);
     };
   }, [onResizeDialogueColumn, resizing]);
-
-  function markPlayed(cellId: string) {
-    setPlayedCellIds((current) => current.includes(cellId) ? current : [...current, cellId]);
-  }
 
   function playNextInReference(cell: CellItem) {
     if (!autoPlay) return;
@@ -257,7 +252,7 @@ export function LineMatrix({
                   const audioUrl = cell.current_result
                     ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
                     : null;
-                  const isPlayed = cell.display_status === "played" || playedCellIds.includes(cell.id);
+                  const isPlayed = cell.display_status === "played";
                   const regenerateLocked = cell.display_status === "generating" || (busy && !allowRegenerateWhileBusy);
                   return (
                     <article
@@ -292,7 +287,6 @@ export function LineMatrix({
                           preload="none"
                           src={audioUrl}
                           onPlay={() => {
-                            markPlayed(cell.id);
                             onMarkCellPlayed?.(cell.id);
                           }}
                           onEnded={() => playNextInReference(cell)}

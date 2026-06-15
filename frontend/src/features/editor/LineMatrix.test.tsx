@@ -97,15 +97,30 @@ describe("LineMatrix", () => {
     expect(container.querySelector('audio[src*="cells/0.wav"]')).toBeInTheDocument();
   });
 
-  it("marks a cell as played and reports playback when its audio starts", () => {
+  it("reports playback and follows backend display status after rerender", () => {
     const props = matrixProps();
-    render(<LineMatrix {...props} />);
+    const { rerender } = render(<LineMatrix {...props} />);
 
     const audio = screen.getByLabelText("音声: toru / hello");
     fireEvent.play(audio);
 
-    expect(audio.closest("article")).toHaveClass("is-played");
     expect(props.onMarkCellPlayed).toHaveBeenCalledWith("cell-1");
+
+    rerender(
+      <LineMatrix
+        {...props}
+        cells={[{ ...cells[0], display_status: "played" }, cells[1]]}
+      />,
+    );
+    expect(screen.getByLabelText("音声: toru / hello").closest("article")).toHaveClass("is-played");
+
+    rerender(
+      <LineMatrix
+        {...props}
+        cells={[{ ...cells[0], display_status: "unplayed" }, cells[1]]}
+      />,
+    );
+    expect(screen.getByLabelText("音声: toru / hello").closest("article")).not.toHaveClass("is-played");
   });
 
   it("auto-plays only the next cell in the same reference", () => {
