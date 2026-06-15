@@ -480,10 +480,11 @@ def create_projects_router(
 
     @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
     def delete_project(project_id: str) -> Response:
-        project_dir = store.project_dir(project_id)
-        if not project_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-        shutil.rmtree(project_dir)
+        with get_project_write_lock(project_id):
+            project_dir = store.project_dir(project_id)
+            if not project_dir.is_dir():
+                raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+            shutil.rmtree(project_dir)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return router

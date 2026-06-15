@@ -662,6 +662,74 @@ def test_playback_event_survives_concurrent_project_update(tmp_path: Path) -> No
     assert final_cell["display_status"] == "played"
 
 
+def test_delete_project_waits_for_inflight_playback_save(tmp_path: Path) -> None:
+    client = _client(tmp_path, FakeRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+
+    original_save = ProjectStore.save
+    save_started = Event()
+    allow_save = Event()
+
+    def blocking_save(self, project):
+        played_cell = next((cell for cell in project.cells if cell.id == cell_id), None)
+        if (
+            project.id == project_id
+            and played_cell is not None
+            and played_cell.playback_state == "played"
+            and not save_started.is_set()
+        ):
+            save_started.set()
+            if not allow_save.wait(timeout=3):
+                raise TimeoutError("Timed out waiting to release blocked playback save")
+        return original_save(self, project)
+
+    playback_response: dict[str, object] = {}
+    delete_response: dict[str, object] = {}
+    delete_finished = Event()
+
+    def run_playback() -> None:
+        playback_response["response"] = client.post(
+            f"/api/projects/{project_id}/cells/{cell_id}/playback-events"
+        )
+
+    def run_delete() -> None:
+        delete_response["response"] = client.delete(f"/api/projects/{project_id}")
+        delete_finished.set()
+
+    with patch("app.services.project_store.ProjectStore.save", autospec=True, side_effect=blocking_save):
+        playback_thread = Thread(target=run_playback, daemon=True)
+        delete_thread = Thread(target=run_delete, daemon=True)
+        playback_thread.start()
+        assert save_started.wait(timeout=1)
+
+        delete_thread.start()
+        assert not delete_finished.wait(timeout=0.2)
+
+        allow_save.set()
+        playback_thread.join(timeout=3)
+        delete_thread.join(timeout=3)
+
+    played = playback_response["response"]
+    deleted = delete_response["response"]
+    assert played.status_code == 200
+    assert deleted.status_code == 204
+    final_project = client.get(f"/api/projects/{project_id}")
+    assert final_project.status_code == 404
+
+
 def test_generate_all_legacy_persists_error_state_on_failure(tmp_path: Path) -> None:
     client = _client(tmp_path, ErrorRuntimeManager())
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
