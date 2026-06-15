@@ -48,6 +48,7 @@ function props(): ComponentProps<typeof ProjectEditor> {
     onEditLine: vi.fn(),
     onInsertLine: vi.fn(),
     onDeleteLine: vi.fn(),
+    onClearLines: vi.fn(),
     onReorder: vi.fn(),
     onGenerate: vi.fn(),
     onRegenerate: vi.fn(),
@@ -55,6 +56,7 @@ function props(): ComponentProps<typeof ProjectEditor> {
     onAppendReferenceColumn: vi.fn(),
     onRemovePlaylistItem: vi.fn(),
     onReorderPlaylist: vi.fn(),
+    onClearPlaylist: vi.fn(),
     onExport: vi.fn(),
     onExportText: vi.fn(),
     onSaveSettings: vi.fn(),
@@ -277,5 +279,17 @@ describe("ProjectEditor", () => {
     await user.click(screen.getByRole("button", { name: "プロジェクトを削除" }));
 
     expect(editorProps.onDeleteProject).toHaveBeenCalled();
+  });
+
+  it("clears all lines after confirmation", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const editorProps = props();
+    editorProps.project = projectWithLines("hello", "world");
+    render(<ProjectEditor {...editorProps} />);
+
+    await user.click(screen.getByRole("button", { name: "セリフを全消し" }));
+
+    expect(editorProps.onClearLines).toHaveBeenCalledOnce();
   });
 });

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, importLines, listProjects } from "./client";
+import { ApiError, clearLines, clearPlaylist, importLines, listProjects } from "./client";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -37,5 +37,37 @@ describe("API client", () => {
     await expect(listProjects()).rejects.toEqual(
       new ApiError(404, "Project not found"),
     );
+  });
+
+  it("calls the clear playlist endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "project-1", export_playlist: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await clearPlaylist("project-1");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/projects/project-1/playlist/items");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("calls the clear lines endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "project-1", lines: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await clearLines("project-1");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/projects/project-1/lines");
+    expect(init.method).toBe("DELETE");
   });
 });

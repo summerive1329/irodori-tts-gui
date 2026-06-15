@@ -182,7 +182,7 @@ body::before {
 .icon-button { position: absolute; top: 5px; right: 5px; border: 0; background: transparent; cursor: pointer; font-size: 18px; }
 
 .editor-main { min-width: 0; padding: 20px; }
-.editor-toolbar { display: grid; grid-template-columns: minmax(280px, 1fr) auto; gap: 10px; align-items: stretch; margin-bottom: 12px; }
+.editor-toolbar { display: grid; grid-template-columns: minmax(280px, 1fr) auto auto; gap: 10px; align-items: stretch; margin-bottom: 12px; }
 .line-dropzone { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 84px; border: 1px dashed var(--green); padding: 14px 16px; background: rgba(211, 224, 215, 0.58); transition: background 160ms ease, transform 160ms ease; }
 .line-dropzone.is-dragging { background: var(--green-soft); transform: scale(1.01); }
 .line-dropzone strong, .line-dropzone small { display: block; }
@@ -326,7 +326,8 @@ body::before {
 .pending-delete-toast strong { display: block; font-size: 13px; }
 .pending-delete-toast p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .playlist-panel { padding: 24px 22px; }
-.playlist-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.playlist-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.playlist-header-actions { display: grid; justify-items: end; gap: 8px; }
 .playlist-header h2 { margin: 6px 0 0; font: 500 27px/1 "Iowan Old Style", "Yu Mincho", serif; }
 .playlist-count { color: var(--orange); font: 500 30px/1 "Iowan Old Style", serif; }
 .playlist-summary { margin: 7px 0 0; color: var(--muted); font-size: 10px; font-weight: 800; }

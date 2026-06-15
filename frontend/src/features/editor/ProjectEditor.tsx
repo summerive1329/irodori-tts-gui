@@ -41,6 +41,7 @@ type Props = {
   onEditLine: (lineId: string, text: string) => void;
   onInsertLine: (index: number, text: string) => void;
   onDeleteLine: (lineId: string) => void;
+  onClearLines: () => void;
   onReorder: (lineIds: string[]) => void;
   onGenerate: (onlyMissing: boolean) => void;
   onRegenerate: (cellId: string, seed: number | null) => void;
@@ -49,6 +50,7 @@ type Props = {
   onAppendReferenceColumn: (referenceId: string) => void;
   onRemovePlaylistItem: (playlistItemId: string) => void;
   onReorderPlaylist: (playlistItemIds: string[]) => void;
+  onClearPlaylist: () => void;
   onExport: () => void;
   onExportText: () => void;
   onSaveSettings: (settings: ProjectSettings) => void;
@@ -70,6 +72,7 @@ export function ProjectEditor({
   onEditLine,
   onInsertLine,
   onDeleteLine,
+  onClearLines,
   onReorder,
   onGenerate,
   onRegenerate,
@@ -78,6 +81,7 @@ export function ProjectEditor({
   onAppendReferenceColumn,
   onRemovePlaylistItem,
   onReorderPlaylist,
+  onClearPlaylist,
   onExport,
   onExportText,
   onSaveSettings,
@@ -164,6 +168,16 @@ export function ProjectEditor({
                 末尾に追加
               </button>
             </details>
+            <button
+              type="button"
+              className="button button-quiet"
+              disabled={busy || project.lines.length === 0}
+              onClick={() => {
+                if (window.confirm("セリフを全て削除しますか？")) onClearLines();
+              }}
+            >
+              セリフを全消し
+            </button>
           </div>
 
           <GenerationConsole
@@ -220,6 +234,7 @@ export function ProjectEditor({
             exportUrl={exportUrl}
             onRemove={onRemovePlaylistItem}
             onReorder={onReorderPlaylist}
+            onClear={onClearPlaylist}
             onExport={onExport}
             onExportText={onExportText}
           />

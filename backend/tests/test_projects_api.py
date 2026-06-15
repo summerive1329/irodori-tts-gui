@@ -959,6 +959,52 @@ def test_playlist_flow_supports_column_append_and_wav_export(tmp_path: Path) -> 
     assert media.headers["content-type"].startswith("audio/")
 
 
+def test_clear_playlist_removes_all_playlist_items(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    project = client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    ).json()
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    ready = client.get(f"/api/projects/{project_id}").json()
+    client.post(
+        f"/api/projects/{project_id}/playlist/items",
+        json={"cell_id": ready["cells"][0]["id"]},
+    )
+
+    cleared = client.delete(f"/api/projects/{project_id}/playlist/items")
+
+    assert cleared.status_code == 200
+    assert cleared.json()["export_playlist"] == []
+    assert len(cleared.json()["lines"]) == 1
+    assert len(cleared.json()["cells"]) == 1
+
+
+def test_clear_lines_removes_lines_cells_and_playlist_items(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    cleared = client.delete(f"/api/projects/{project_id}/lines")
+
+    assert cleared.status_code == 200
+    assert cleared.json()["lines"] == []
+    assert cleared.json()["cells"] == []
+    assert cleared.json()["export_playlist"] == []
+
+
 def test_insert_line_and_export_text_use_current_line_order(tmp_path: Path) -> None:
     client = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]

@@ -282,6 +282,14 @@ def create_projects_router(
 
         return mutate_project(project_id, apply_change)
 
+    @router.delete("/{project_id}/lines", response_model=ProjectWithGenerationProgress)
+    def clear_lines(project_id: str) -> ProjectWithGenerationProgress:
+        def apply_change(project: Project) -> None:
+            remove_cell_audio(project, {cell.id for cell in project.cells})
+            project.clear_lines()
+
+        return mutate_project(project_id, apply_change)
+
     @router.put("/{project_id}/lines/order", response_model=ProjectWithGenerationProgress)
     def reorder_lines(
         project_id: str, payload: ReorderLinesRequest
@@ -475,6 +483,10 @@ def create_projects_router(
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
 
         return mutate_project(project_id, apply_change)
+
+    @router.delete("/{project_id}/playlist/items", response_model=ProjectWithGenerationProgress)
+    def clear_playlist(project_id: str) -> ProjectWithGenerationProgress:
+        return mutate_project(project_id, lambda project: project.clear_playlist())
 
     @router.put("/{project_id}/playlist/order", response_model=ProjectWithGenerationProgress)
     def reorder_playlist(

@@ -218,6 +218,11 @@ class Project(BaseModel):
         ]
         self.touch()
 
+    def clear_playlist(self) -> None:
+        if self.export_playlist:
+            self.export_playlist = []
+            self.touch()
+
     def reorder_playlist(self, ordered_item_ids: list[str]) -> None:
         current_ids = {item.id for item in self.export_playlist}
         if len(ordered_item_ids) != len(current_ids) or set(ordered_item_ids) != current_ids:
@@ -260,6 +265,13 @@ class Project(BaseModel):
         ]
         self._reindex_lines()
         self.touch()
+
+    def clear_lines(self) -> None:
+        if self.lines or self.cells or self.export_playlist:
+            self.lines = []
+            self.cells = []
+            self.export_playlist = []
+            self.touch()
 
     def remove_reference(self, reference_id: str) -> ReferenceItem:
         reference = next(

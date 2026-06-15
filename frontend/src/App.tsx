@@ -206,6 +206,7 @@ export function App() {
         onEditLine={(lineId, text) => void runProjectAction(() => api.updateLine(project.id, lineId, text))}
         onInsertLine={(index, text) => void runProjectAction(() => api.insertLine(project.id, index, text))}
         onDeleteLine={(lineId) => void runProjectAction(() => api.deleteLine(project.id, lineId))}
+        onClearLines={() => void runProjectAction(() => api.clearLines(project.id))}
         onReorder={(lineIds) => void runProjectAction(() => api.reorderLines(project.id, lineIds))}
         onGenerate={(onlyMissing) => void startJob(() => api.startGenerationJob(project.id, onlyMissing))}
         onRegenerate={(cellId, seed) => void startJob(() => api.startRegenerationJob(project.id, cellId, seed))}
@@ -214,6 +215,7 @@ export function App() {
         onAppendReferenceColumn={(referenceId) => void runProjectAction(() => api.appendReferenceColumn(project.id, referenceId))}
         onRemovePlaylistItem={(playlistItemId) => void runProjectAction(() => api.removePlaylistItem(project.id, playlistItemId))}
         onReorderPlaylist={(playlistItemIds) => void runProjectAction(() => api.reorderPlaylist(project.id, playlistItemIds))}
+        onClearPlaylist={() => void runProjectAction(() => api.clearPlaylist(project.id))}
         onExport={async () => {
           setBusy(true);
           setError(null);

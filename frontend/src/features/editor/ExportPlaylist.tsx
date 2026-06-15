@@ -9,6 +9,7 @@ type Props = {
   exportUrl: string | null;
   onRemove: (playlistItemId: string) => void;
   onReorder: (playlistItemIds: string[]) => void;
+  onClear: () => void;
   onExport: () => void;
   onExportText: () => void;
 };
@@ -20,6 +21,7 @@ export function ExportPlaylist({
   exportUrl,
   onRemove,
   onReorder,
+  onClear,
   onExport,
   onExportText,
 }: Props) {
@@ -61,7 +63,19 @@ export function ExportPlaylist({
           <h2>書き出しリスト</h2>
           <p className="playlist-summary">{items.length} 件 · 合計 {totalDuration.toFixed(1)} 秒</p>
         </div>
-        <span className="playlist-count">{String(items.length).padStart(2, "0")}</span>
+        <div className="playlist-header-actions">
+          <span className="playlist-count">{String(items.length).padStart(2, "0")}</span>
+          <button
+            type="button"
+            className="button button-quiet"
+            disabled={busy || items.length === 0}
+            onClick={() => {
+              if (window.confirm("書き出しリストを全て削除しますか？")) onClear();
+            }}
+          >
+            書き出しリストを全消し
+          </button>
+        </div>
       </header>
 
       {items.length === 0 ? (

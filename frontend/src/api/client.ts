@@ -76,6 +76,10 @@ export function deleteLine(projectId: string, lineId: string): Promise<Project> 
   return request(`/api/projects/${projectId}/lines/${lineId}`, { method: "DELETE" });
 }
 
+export function clearLines(projectId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/lines`, { method: "DELETE" });
+}
+
 export function reorderLines(projectId: string, lineIds: string[]): Promise<Project> {
   return request(`/api/projects/${projectId}/lines/order`, json("PUT", { line_ids: lineIds }));
 }
@@ -121,6 +125,10 @@ export function appendReferenceColumn(projectId: string, referenceId: string): P
 
 export function removePlaylistItem(projectId: string, playlistItemId: string): Promise<Project> {
   return request(`/api/projects/${projectId}/playlist/items/${playlistItemId}`, { method: "DELETE" });
+}
+
+export function clearPlaylist(projectId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/playlist/items`, { method: "DELETE" });
 }
 
 export function reorderPlaylist(projectId: string, playlistItemIds: string[]): Promise<Project> {

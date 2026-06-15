@@ -135,3 +135,41 @@ def test_remove_line_and_reference_remove_related_cells() -> None:
     assert all(cell.reference_id != first_reference.id for cell in project.cells)
     assert [reference.id for reference in project.references] == [second_reference.id]
     assert project.export_playlist == []
+
+
+def test_clear_lines_removes_all_lines_cells_and_playlist_items() -> None:
+    project = Project.create("demo")
+    project.append_lines(["one", "two"])
+    reference = project.add_reference("toru", "a.wav", "references/a.wav", 1.0)
+    cell = project.find_cell(project.lines[0].id, reference.id)
+    cell.current_result = CellResult(
+        audio_path="cells/a.wav",
+        sample_rate=48000,
+        duration_sec=1.0,
+    )
+    project.append_playlist_item(cell.id)
+
+    project.clear_lines()
+
+    assert project.lines == []
+    assert project.cells == []
+    assert project.export_playlist == []
+
+
+def test_clear_playlist_removes_all_export_items_only() -> None:
+    project = Project.create("demo")
+    project.append_lines(["one"])
+    reference = project.add_reference("toru", "a.wav", "references/a.wav", 1.0)
+    cell = project.find_cell(project.lines[0].id, reference.id)
+    cell.current_result = CellResult(
+        audio_path="cells/a.wav",
+        sample_rate=48000,
+        duration_sec=1.0,
+    )
+    project.append_playlist_item(cell.id)
+
+    project.clear_playlist()
+
+    assert len(project.lines) == 1
+    assert len(project.cells) == 1
+    assert project.export_playlist == []
