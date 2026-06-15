@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
+
+from pydantic import ValidationError
 
 from app.models.project import Project, ProjectSummary
 
@@ -39,8 +42,21 @@ class ProjectStore:
                 return []
             summaries: list[ProjectSummary] = []
             for path in projects_dir.glob("*/project.json"):
-                project = Project.model_validate_json(path.read_text(encoding="utf-8"))
+                try:
+                    project = Project.model_validate_json(path.read_text(encoding="utf-8"))
+                except (OSError, ValidationError):
+                    self._quarantine_corrupt_project_file(path)
+                    continue
                 summaries.append(
                     ProjectSummary(id=project.id, name=project.name, updated_at=project.updated_at)
                 )
             return sorted(summaries, key=lambda item: item.updated_at, reverse=True)
+
+    def _quarantine_corrupt_project_file(self, path: Path) -> None:
+        suffix = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        quarantined = path.with_name(f"{path.name}.corrupt-{suffix}")
+        counter = 1
+        while quarantined.exists():
+            counter += 1
+            quarantined = path.with_name(f"{path.name}.corrupt-{suffix}-{counter}")
+        path.replace(quarantined)

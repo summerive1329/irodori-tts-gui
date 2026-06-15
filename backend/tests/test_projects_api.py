@@ -119,6 +119,24 @@ def test_projects_are_persisted_and_listed(tmp_path: Path) -> None:
     assert loaded.json()["name"] == "demo"
 
 
+def test_list_projects_ignores_corrupt_project_files(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    created = client.post("/api/projects", json={"name": "demo"})
+    assert created.status_code == 201
+
+    broken_dir = tmp_path / "projects" / "broken-project"
+    broken_dir.mkdir(parents=True, exist_ok=True)
+    (broken_dir / "project.json").write_bytes(b"\x00" * 256)
+
+    listed = client.get("/api/projects")
+
+    assert listed.status_code == 200
+    assert [(item["id"], item["name"]) for item in listed.json()] == [
+        (created.json()["id"], "demo")
+    ]
+    assert next(broken_dir.glob("project.json.corrupt-*"), None) is not None
+
+
 def test_mutation_response_updated_at_matches_persisted_project(tmp_path: Path) -> None:
     client = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]

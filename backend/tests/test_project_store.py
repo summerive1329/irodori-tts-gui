@@ -79,3 +79,19 @@ def test_project_store_serializes_reads_and_writes(tmp_path: Path, monkeypatch) 
     assert not reader.is_alive()
     assert not writer.is_alive()
     assert errors == []
+
+
+def test_list_projects_skips_corrupt_project_files(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path)
+    valid = Project.create("valid")
+    store.save(valid)
+    broken_dir = store.project_dir("broken-project")
+    broken_dir.mkdir(parents=True, exist_ok=True)
+    (broken_dir / "project.json").write_bytes(b"\x00" * 128)
+
+    summaries = store.list_projects()
+
+    assert [(item.id, item.name) for item in summaries] == [(valid.id, "valid")]
+    quarantined = next(broken_dir.glob("project.json.corrupt-*"), None)
+    assert quarantined is not None
+    assert (broken_dir / "project.json").exists() is False
