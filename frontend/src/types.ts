@@ -1,5 +1,5 @@
 export type CellStatus = "idle" | "queued" | "generating" | "ready" | "error";
-export type CellDisplayStatus = "not_generated" | "generating" | "unplayed" | "played" | "error";
+export type CellDisplayStatus = "not_generated" | "queued" | "generating" | "unplayed" | "played" | "error";
 
 export type CellResult = {
   audio_path: string;
@@ -60,6 +60,14 @@ export type GenerationProgress = {
   running_job_count: number;
   running_job_kinds: GenerationJob["kind"][];
   has_running_jobs: boolean;
+  active_jobs: {
+    job_id: string;
+    kind: GenerationJob["kind"];
+    cell_id: string;
+    line_index: number;
+    reference_label: string;
+    status: "queued" | "generating";
+  }[];
 };
 
 export type Project = {

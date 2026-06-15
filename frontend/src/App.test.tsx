@@ -95,6 +95,7 @@ const project: Project = {
     running_job_count: 0,
     running_job_kinds: [],
     has_running_jobs: false,
+    active_jobs: [],
   },
   references: [],
   lines: [],
@@ -348,6 +349,7 @@ describe("App", () => {
         running_job_count: 0,
         running_job_kinds: [],
         has_running_jobs: false,
+        active_jobs: [],
       },
     };
     const runningProject: Project = {
@@ -356,6 +358,7 @@ describe("App", () => {
         running_job_count: 2,
         running_job_kinds: ["generate_all", "regenerate_cell"],
         has_running_jobs: true,
+        active_jobs: [],
       },
     };
 

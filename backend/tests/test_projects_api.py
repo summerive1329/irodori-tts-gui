@@ -281,6 +281,24 @@ def test_project_payload_includes_running_job_count_for_generate_and_regenerate(
             "generate_all",
             "regenerate_cell",
         ]
+        assert running["generation_progress"]["active_jobs"] == [
+            {
+                "job_id": generated.json()["id"],
+                "kind": "generate_all",
+                "cell_id": project["cells"][0]["id"],
+                "line_index": 1,
+                "reference_label": "toru",
+                "status": "generating",
+            },
+            {
+                "job_id": regen.json()["id"],
+                "kind": "regenerate_cell",
+                "cell_id": project["cells"][1]["id"],
+                "line_index": 2,
+                "reference_label": "toru",
+                "status": "queued",
+            },
+        ]
     finally:
         runtime_manager.release.set()
         runtime_manager.allow_regeneration.set()
@@ -422,6 +440,75 @@ def test_cell_display_status_is_generating_while_job_is_running(tmp_path: Path) 
     finally:
         runtime_manager.release.set()
         _wait_for_job(client, project_id, started.json()["id"])
+
+
+def test_queued_cells_are_distinct_from_currently_generating_cells(tmp_path: Path) -> None:
+    runtime_manager = BlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    )
+    assert started.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    try:
+        running = client.get(f"/api/projects/{project_id}").json()
+        assert [cell["display_status"] for cell in running["cells"]] == ["generating", "queued"]
+    finally:
+        runtime_manager.release.set()
+        _wait_for_job(client, project_id, started.json()["id"])
+
+
+def test_multiple_regeneration_jobs_can_be_queued_while_busy(tmp_path: Path) -> None:
+    runtime_manager = RegenerationBlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two", "three"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+
+    first = client.post(
+        f"/api/projects/{project_id}/cells/{generated['cells'][0]['id']}/regeneration-jobs",
+        json={"seed": 22},
+    )
+    assert first.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    second = client.post(
+        f"/api/projects/{project_id}/cells/{generated['cells'][1]['id']}/regeneration-jobs",
+        json={"seed": 23},
+    )
+
+    try:
+        assert second.status_code == 202
+        running = client.get(f"/api/projects/{project_id}").json()
+        assert running["generation_progress"]["running_job_count"] == 2
+        assert [job["status"] for job in running["generation_progress"]["active_jobs"]] == [
+            "generating",
+            "queued",
+        ]
+    finally:
+        runtime_manager.allow_regeneration.set()
+        _wait_for_job(client, project_id, first.json()["id"])
+        _wait_for_job(client, project_id, second.json()["id"])
 
 
 def test_cell_display_status_is_error_after_generation_failure(tmp_path: Path) -> None:

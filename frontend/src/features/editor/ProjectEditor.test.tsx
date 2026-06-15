@@ -23,6 +23,7 @@ const project: Project = {
     running_job_count: 0,
     running_job_kinds: [],
     has_running_jobs: false,
+    active_jobs: [],
   },
   references: [],
   lines: [],
@@ -117,7 +118,7 @@ describe("ProjectEditor", () => {
     expect(editorProps.onGenerate).toHaveBeenCalledWith(false);
   });
 
-  it("keeps other regenerate buttons disabled during a running regeneration job", () => {
+  it("keeps regenerate available during a running regeneration job", () => {
     const editorProps = props();
     editorProps.busy = true;
     editorProps.job = {
@@ -135,6 +136,21 @@ describe("ProjectEditor", () => {
     };
     editorProps.project = {
       ...project,
+      generation_progress: {
+        running_job_count: 1,
+        running_job_kinds: ["regenerate_cell"],
+        has_running_jobs: true,
+        active_jobs: [
+          {
+            job_id: "job-1",
+            kind: "regenerate_cell",
+            cell_id: "cell-1",
+            line_index: 1,
+            reference_label: "toru",
+            status: "generating",
+          },
+        ],
+      },
       lines: [{ id: "line-1", text: "hello", order_index: 0 }],
       references: [
         { id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 },
@@ -148,11 +164,11 @@ describe("ProjectEditor", () => {
     };
     render(<ProjectEditor {...editorProps} />);
 
-    expect(screen.getByRole("button", { name: "再生成: toru / hello" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "再生成: lize / hello" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "再生成: toru / hello" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "再生成: lize / hello" })).toBeEnabled();
   });
 
-  it("shows running job count instead of completed versus total progress", () => {
+  it("shows active job details alongside the running job count", () => {
     const editorProps = props();
     editorProps.job = {
       id: "job-1",
@@ -173,6 +189,24 @@ describe("ProjectEditor", () => {
         running_job_count: 2,
         running_job_kinds: ["generate_all", "regenerate_cell"],
         has_running_jobs: true,
+        active_jobs: [
+          {
+            job_id: "job-1",
+            kind: "generate_all",
+            cell_id: "cell-1",
+            line_index: 1,
+            reference_label: "toru",
+            status: "generating",
+          },
+          {
+            job_id: "job-2",
+            kind: "regenerate_cell",
+            cell_id: "cell-2",
+            line_index: 3,
+            reference_label: "lize",
+            status: "queued",
+          },
+        ],
       },
       lines: [{ id: "line-1", text: "hello", order_index: 0 }],
       references: [{ id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 }],
@@ -183,7 +217,8 @@ describe("ProjectEditor", () => {
     render(<ProjectEditor {...editorProps} />);
 
     expect(screen.getByText("生成中 2件")).toBeInTheDocument();
-    expect(screen.queryByText("0 / 1 セル完了")).not.toBeInTheDocument();
+    expect(screen.getByText("実行中: 1行目 / toru")).toBeInTheDocument();
+    expect(screen.getByText("待機中: 3行目 / lize")).toBeInTheDocument();
   });
 
   it("inserts a line at the requested position", async () => {

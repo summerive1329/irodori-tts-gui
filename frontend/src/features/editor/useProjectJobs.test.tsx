@@ -23,6 +23,7 @@ const project: Project = {
     running_job_count: 0,
     running_job_kinds: [],
     has_running_jobs: false,
+    active_jobs: [],
   },
   references: [],
   lines: [],

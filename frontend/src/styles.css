@@ -195,6 +195,7 @@ body::before {
 .generation-progress { display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--line); padding-left: 16px; }
 .generation-progress.is-running .status-dot { background: var(--blue); animation: pulse 1s infinite alternate; }
 .generation-progress strong { display: block; margin-top: 3px; font-size: 12px; }
+.generation-progress-detail { display: grid; gap: 3px; margin-top: 6px; color: var(--muted); font-size: 11px; }
 .autoplay-toggle { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 800; }
 .work-indicator { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; border-left: 3px solid var(--orange); padding: 10px 14px; background: var(--orange-soft); font-size: 12px; }
 .work-indicator span { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); animation: pulse 1s infinite alternate; }
@@ -268,16 +269,12 @@ body::before {
 .drop-hint { position: absolute; right: 12px; color: var(--green); font-size: 10px; font-weight: 800; }
 .result-cell { display: grid; grid-template-rows: auto auto minmax(1.5rem, auto) auto auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; }
 .result-cell.is-focused { box-shadow: inset 0 0 0 2px var(--orange); background: #fffaf0; }
-.result-cell.status-not_generated { background: rgba(255, 255, 255, 0.16); }
-.result-cell.status-generating { background: rgba(214, 231, 251, 0.78); }
 .result-cell.status-unplayed,
 .result-cell.is-unplayed { background: rgba(247, 215, 199, 0.68); }
-.result-cell.status-played,
-.result-cell.is-played { background: rgba(216, 234, 223, 0.96); }
-.result-cell.status-error { background: rgba(241, 200, 192, 0.68); }
 .cell-topline { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
 .status-not_generated .status-dot { background: #8b8f97; }
+.status-queued .status-dot { background: #8b8f97; }
 .status-generating .status-dot { background: var(--blue); animation: pulse 1s infinite alternate; }
 .status-unplayed .status-dot { background: var(--orange); }
 .status-played .status-dot { background: var(--green); }

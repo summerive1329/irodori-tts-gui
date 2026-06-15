@@ -50,7 +50,7 @@ export function CellDetailPane({ projectId, cell, line, reference, busy, onRegen
       <button
         type="button"
         className="button button-accent"
-        disabled={busy || (parsedSeed !== null && !Number.isInteger(parsedSeed))}
+        disabled={parsedSeed !== null && !Number.isInteger(parsedSeed)}
         onClick={() => onRegenerate(cell.id, parsedSeed)}
       >
         選択セルを再生成

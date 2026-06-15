@@ -26,6 +26,9 @@ export function GenerationConsole({
     : generationProgress.running_job_count > 0
       ? `生成中 ${generationProgress.running_job_count}件`
       : "待機中";
+  const activeJobLines = generationProgress.active_jobs.map((activeJob) => (
+    `${activeJob.status === "generating" ? "実行中" : "待機中"}: ${activeJob.line_index}行目 / ${activeJob.reference_label}`
+  ));
 
   return (
     <section className="generation-console">
@@ -38,6 +41,11 @@ export function GenerationConsole({
         <div>
           <span className="eyebrow">GENERATION JOB</span>
           <strong>{status}</strong>
+          {activeJobLines.length > 0 ? (
+            <div className="generation-progress-detail">
+              {activeJobLines.map((line) => <span key={line}>{line}</span>)}
+            </div>
+          ) : null}
         </div>
       </div>
       <label className="autoplay-toggle">

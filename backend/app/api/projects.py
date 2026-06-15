@@ -7,7 +7,7 @@ from threading import Lock, RLock, Thread
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
-from app.models.project import Cell, GenerationProgress, Project, ProjectSummary
+from app.models.project import ActiveGenerationJob, Cell, GenerationProgress, Project, ProjectSummary
 from app.schemas.api import (
     AppendLinesRequest,
     CreateProjectRequest,
@@ -49,12 +49,48 @@ def create_projects_router(
 
     def attach_generation_progress(project: Project) -> ProjectWithGenerationProgress:
         running_jobs = job_registry.list_running_for_project(project.id)
+        line_index_by_id = {line.id: line.order_index + 1 for line in project.lines}
+        reference_label_by_id = {
+            reference.id: reference.label for reference in project.references
+        }
+        cell_by_id = {cell.id: cell for cell in project.cells}
+        active_jobs: list[ActiveGenerationJob] = []
+        for job in sorted(running_jobs, key=lambda item: item.created_at):
+            candidate_cell_id = job.active_cell_id
+            status = "generating"
+            if candidate_cell_id is None:
+                queued_cell = next(
+                    (
+                        cell.id
+                        for cell in project.cells
+                        if cell.id in job.target_cell_ids and cell.status == "queued"
+                    ),
+                    None,
+                )
+                candidate_cell_id = queued_cell or next(iter(job.target_cell_ids), None)
+                status = "queued"
+            if candidate_cell_id is None:
+                continue
+            cell = cell_by_id.get(candidate_cell_id)
+            if cell is None:
+                continue
+            active_jobs.append(
+                ActiveGenerationJob(
+                    job_id=job.id,
+                    kind=job.kind,
+                    cell_id=cell.id,
+                    line_index=line_index_by_id.get(cell.line_id, 0),
+                    reference_label=reference_label_by_id.get(cell.reference_id, ""),
+                    status=status,
+                )
+            )
         return ProjectWithGenerationProgress(
             **project.model_dump(exclude={"generation_progress"}),
             generation_progress=GenerationProgress(
                 running_job_count=len(running_jobs),
                 running_job_kinds=[job.kind for job in running_jobs],
                 has_running_jobs=bool(running_jobs),
+                active_jobs=active_jobs,
             ),
         )
 
@@ -104,6 +140,22 @@ def create_projects_router(
             project = load_project(project_id)
             apply_change(project)
             return save_project(project)
+
+    def queue_cells(project_id: str, cell_ids: list[str]) -> ProjectWithGenerationProgress | None:
+        if not cell_ids:
+            return None
+
+        def apply_change(project: Project) -> None:
+            for cell_id in cell_ids:
+                try:
+                    cell = project.get_cell(cell_id)
+                except KeyError as exc:
+                    raise HTTPException(status_code=404, detail=str(exc)) from exc
+                cell.status = "queued"
+                cell.error_message = None
+            project.touch()
+
+        return mutate_project(project_id, apply_change)
 
     def persist_job_state(job_id: str, project: Project, cell) -> None:
         def apply_change(latest_cell: Cell) -> None:
@@ -289,6 +341,7 @@ def create_projects_router(
         ]
         kind = "generate_missing" if payload.only_missing else "generate_all"
         job = job_registry.create(project.id, kind, target_cell_ids)
+        queue_cells(project_id, target_cell_ids)
 
         def run() -> None:
             with get_project_job_lock(project_id):
@@ -334,6 +387,7 @@ def create_projects_router(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         job = job_registry.create(project.id, "regenerate_cell", [cell_id])
+        queue_cells(project_id, [cell_id])
 
         def run() -> None:
             with get_project_job_lock(project_id):

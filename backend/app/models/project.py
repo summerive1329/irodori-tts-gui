@@ -11,7 +11,16 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-CellDisplayStatus = Literal["not_generated", "generating", "unplayed", "played", "error"]
+CellDisplayStatus = Literal["not_generated", "queued", "generating", "unplayed", "played", "error"]
+
+
+class ActiveGenerationJob(BaseModel):
+    job_id: str
+    kind: str
+    cell_id: str
+    line_index: int
+    reference_label: str
+    status: Literal["queued", "generating"]
 
 
 class CellResult(BaseModel):
@@ -49,6 +58,7 @@ class GenerationProgress(BaseModel):
     running_job_count: int = 0
     running_job_kinds: list[str] = Field(default_factory=list)
     has_running_jobs: bool = False
+    active_jobs: list[ActiveGenerationJob] = Field(default_factory=list)
 
 
 class Cell(BaseModel):
@@ -63,7 +73,9 @@ class Cell(BaseModel):
     def _display_status(self) -> CellDisplayStatus:
         if self.status == "error":
             return "error"
-        elif self.status in {"queued", "generating"}:
+        elif self.status == "queued":
+            return "queued"
+        elif self.status == "generating":
             return "generating"
         elif self.current_result is None:
             return "not_generated"

@@ -97,6 +97,18 @@ describe("LineMatrix", () => {
     expect(container.querySelector('audio[src*="cells/0.wav"]')).toBeInTheDocument();
   });
 
+  it("renders queued cells separately from the actively generating cell", () => {
+    const props = matrixProps();
+    props.cells = [
+      { ...cells[0], status: "generating", display_status: "generating" },
+      { ...cells[1], status: "queued", display_status: "queued" },
+    ];
+    render(<LineMatrix {...props} />);
+
+    expect(screen.getByText("生成中")).toBeInTheDocument();
+    expect(screen.getByText("待機中")).toBeInTheDocument();
+  });
+
   it("reports playback and follows backend display status after rerender", () => {
     const props = matrixProps();
     const { rerender } = render(<LineMatrix {...props} />);
@@ -216,5 +228,17 @@ describe("LineMatrix", () => {
     expect(screen.getByText("未生成")).toBeInTheDocument();
     expect(screen.getAllByText("未再生")).toHaveLength(1);
     expect(screen.queryByText("再生済み")).not.toBeInTheDocument();
+  });
+
+  it("keeps the highlighted background only for unplayed cells", () => {
+    const props = matrixProps();
+    props.cells = [
+      { ...cells[0], status: "idle", display_status: "not_generated", current_result: null },
+      { ...cells[1], display_status: "unplayed" },
+    ];
+    render(<LineMatrix {...props} />);
+
+    expect(screen.getByText("未生成").closest("article")).not.toHaveClass("is-unplayed");
+    expect(screen.getByText("未再生").closest("article")).toHaveClass("is-unplayed");
   });
 });
