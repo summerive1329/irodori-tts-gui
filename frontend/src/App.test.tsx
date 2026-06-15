@@ -340,6 +340,38 @@ describe("App", () => {
     await waitFor(() => expect(jobHookControls.calls.at(-1)).toEqual(["job-existing"]));
   });
 
+  it("refreshes backend generation progress immediately after starting a running job", async () => {
+    const user = userEvent.setup();
+    const readyProject: Project = {
+      ...projectWithCells,
+      generation_progress: {
+        running_job_count: 0,
+        running_job_kinds: [],
+        has_running_jobs: false,
+      },
+    };
+    const runningProject: Project = {
+      ...readyProject,
+      generation_progress: {
+        running_job_count: 2,
+        running_job_kinds: ["generate_all", "regenerate_cell"],
+        has_running_jobs: true,
+      },
+    };
+
+    window.history.pushState({}, "", "/projects/project-1");
+    apiMocks.getProject
+      .mockResolvedValueOnce(readyProject)
+      .mockResolvedValueOnce(runningProject);
+
+    render(<AppRouter />);
+
+    expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "未生成を実行" }));
+
+    expect(await screen.findByText("生成中 2件")).toBeInTheDocument();
+  });
+
   it("posts playback events when audio playback starts", async () => {
     window.history.pushState({}, "", "/projects/project-1");
     apiMocks.getProject.mockResolvedValue(projectWithUnplayedCell);

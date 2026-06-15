@@ -102,6 +102,9 @@ export function App() {
       if (started.status === "running") {
         setDisplayJob(started);
         setTrackedJobIds((current) => [...new Set([...current, started.id])]);
+        if (projectId) {
+          setProject(await api.getProject(projectId));
+        }
       } else if (trackedJobIds.length === 0) {
         setDisplayJob(started);
       }
