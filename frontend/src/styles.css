@@ -119,11 +119,14 @@ body::before {
 }
 .project-list-heading { display: flex; justify-content: space-between; margin-bottom: 14px; }
 .project-list { display: grid; gap: 8px; }
+.project-card-row { display: grid; grid-template-columns: minmax(0, 1fr) 36px; gap: 8px; align-items: stretch; }
 .project-card { display: grid; grid-template-columns: 40px 1fr auto 28px; gap: 12px; align-items: center; border: 1px solid var(--line); padding: 18px; background: transparent; text-align: left; cursor: pointer; }
 .project-card:hover { background: #fffdf5; border-color: var(--green); }
 .project-card-index { color: var(--orange); font-family: "Iowan Old Style", serif; }
 .project-card small { color: var(--muted); }
 .project-card-arrow { font-size: 20px; }
+.project-card-delete { border: 1px solid rgba(159, 61, 49, 0.3); background: transparent; color: var(--danger); cursor: pointer; font-size: 20px; }
+.project-card-delete:disabled { opacity: 0.4; cursor: not-allowed; }
 .project-list-empty { color: var(--muted); }
 
 .studio-shell { min-height: 100vh; background: var(--paper-deep); }

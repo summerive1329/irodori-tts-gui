@@ -8,6 +8,7 @@ import { ApiError } from "./api/client";
 
 const apiMocks = vi.hoisted(() => ({
   createProject: vi.fn(),
+  deleteProject: vi.fn(),
   getProject: vi.fn(),
   listProjects: vi.fn(),
   markCellPlayed: vi.fn(),
@@ -189,6 +190,7 @@ describe("App", () => {
     window.history.pushState({}, "", "/");
     apiMocks.listProjects.mockResolvedValue([]);
     apiMocks.createProject.mockResolvedValue(project);
+    apiMocks.deleteProject.mockResolvedValue(undefined);
     apiMocks.getProject.mockResolvedValue(project);
     apiMocks.markCellPlayed.mockResolvedValue(projectWithPlayedCell);
     apiMocks.startGenerationJob.mockResolvedValue({
@@ -216,6 +218,29 @@ describe("App", () => {
 
     expect(await screen.findByDisplayValue("demo")).toBeInTheDocument();
     expect(apiMocks.createProject).toHaveBeenCalledWith("demo");
+  });
+
+  it("deletes a project from the home screen and refreshes the list", async () => {
+    const user = userEvent.setup();
+    apiMocks.listProjects
+      .mockResolvedValueOnce([{ id: "project-1", name: "demo", updated_at: "2026-06-16T00:00:00Z" }])
+      .mockResolvedValueOnce([]);
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<App />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("button", { name: "プロジェクトを削除: demo" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "プロジェクトを削除: demo" }));
+
+    await waitFor(() => expect(apiMocks.deleteProject).toHaveBeenCalledWith("project-1"));
+    expect(await screen.findByText("No saved projects yet.")).toBeInTheDocument();
   });
 
   it("reloading a project route re-fetches the same project", async () => {

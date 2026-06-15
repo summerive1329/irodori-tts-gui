@@ -7,9 +7,10 @@ type Props = {
   busy: boolean;
   onCreate: (name: string) => void;
   onOpen: (projectId: string) => void;
+  onDelete: (projectId: string) => void;
 };
 
-export function ProjectHome({ projects, busy, onCreate, onOpen }: Props) {
+export function ProjectHome({ projects, busy, onCreate, onOpen, onDelete }: Props) {
   const [name, setName] = useState("");
 
   return (
@@ -49,12 +50,23 @@ export function ProjectHome({ projects, busy, onCreate, onOpen }: Props) {
         </div>
         <div className="project-list">
           {projects.map((project, index) => (
-            <button className="project-card" type="button" key={project.id} onClick={() => onOpen(project.id)}>
-              <span className="project-card-index">{String(index + 1).padStart(2, "0")}</span>
-              <strong>{project.name}</strong>
-              <small>{new Date(project.updated_at).toLocaleString()}</small>
-              <span className="project-card-arrow">↗</span>
-            </button>
+            <div className="project-card-row" key={project.id}>
+              <button className="project-card" type="button" onClick={() => onOpen(project.id)}>
+                <span className="project-card-index">{String(index + 1).padStart(2, "0")}</span>
+                <strong>{project.name}</strong>
+                <small>{new Date(project.updated_at).toLocaleString()}</small>
+                <span className="project-card-arrow">↗</span>
+              </button>
+              <button
+                type="button"
+                className="project-card-delete"
+                aria-label={`プロジェクトを削除: ${project.name}`}
+                disabled={busy}
+                onClick={() => onDelete(project.id)}
+              >
+                ×
+              </button>
+            </div>
           ))}
           {projects.length === 0 && <p className="project-list-empty">No saved projects yet.</p>}
         </div>

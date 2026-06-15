@@ -151,6 +151,21 @@ export function App() {
             }
           }}
           onOpen={(id) => navigate(`/projects/${id}`)}
+          onDelete={async (id) => {
+            const target = projects.find((item) => item.id === id);
+            if (!target) return;
+            if (!window.confirm(`プロジェクト「${target.name}」を削除しますか？`)) return;
+            setBusy(true);
+            setError(null);
+            try {
+              await api.deleteProject(id);
+              setProjects((current) => current.filter((item) => item.id !== id));
+            } catch (reason) {
+              showError(reason);
+            } finally {
+              setBusy(false);
+            }
+          }}
         />
         {error && <button type="button" className="global-error" onClick={() => setError(null)}>{error}</button>}
       </>
