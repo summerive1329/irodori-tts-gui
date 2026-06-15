@@ -280,6 +280,7 @@ export function LineMatrix({
                       </div>
                       {audioUrl ? (
                         <audio
+                          className="result-audio"
                           ref={(element) => {
                             if (element) audioElements.current.set(cell.id, element);
                             else audioElements.current.delete(cell.id);

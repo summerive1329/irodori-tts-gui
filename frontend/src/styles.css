@@ -169,7 +169,8 @@ body::before {
 
 .studio-main { display: grid; grid-template-columns: 250px minmax(600px, 1fr) 300px; min-height: calc(100vh - 74px); }
 .reference-sidebar, .right-rail { background: var(--paper); }
-.reference-sidebar { border-right: 1px solid var(--line); padding: 24px 18px; }
+.reference-sidebar { border-right: 1px solid var(--line); padding: 24px 18px; transition: background 160ms ease; }
+.reference-sidebar.is-dragging { background: rgba(211, 224, 215, 0.46); }
 .reference-add { width: 100%; margin: 18px 0; border: 1px dashed var(--green); padding: 15px; background: var(--green-soft); color: var(--green); cursor: pointer; font-weight: 800; }
 .reference-add span { margin-right: 7px; font-size: 20px; }
 .reference-list { display: grid; gap: 10px; }
@@ -179,6 +180,9 @@ body::before {
 .reference-meta strong, .reference-meta small, .reference-meta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reference-meta small, .reference-meta span { color: var(--muted); font-size: 10px; }
 .reference-card audio { grid-column: 1 / -1; margin-top: 6px; }
+.reference-audio,
+.result-audio,
+.detail-audio { height: 46px; }
 .icon-button { position: absolute; top: 5px; right: 5px; border: 0; background: transparent; cursor: pointer; font-size: 18px; }
 
 .editor-main { min-width: 0; padding: 20px; }
@@ -277,7 +281,7 @@ body::before {
 .cell-topline { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
 .status-not_generated .status-dot { background: #8b8f97; }
-.status-queued .status-dot { background: #8b8f97; }
+.status-queued .status-dot { background: #c08a17; }
 .status-generating .status-dot { background: var(--blue); animation: pulse 1s infinite alternate; }
 .status-unplayed .status-dot { background: var(--orange); }
 .status-played .status-dot { background: var(--green); }

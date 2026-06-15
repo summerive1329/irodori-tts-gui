@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import type { ReferenceItem } from "../../types";
 
@@ -12,6 +12,7 @@ type Props = {
 
 export function ReferenceSidebar({ projectId, references, busy, onAdd, onDelete }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
 
   function submit(files: FileList) {
     for (const file of Array.from(files)) {
@@ -21,7 +22,25 @@ export function ReferenceSidebar({ projectId, references, busy, onAdd, onDelete 
   }
 
   return (
-    <aside className="reference-sidebar">
+    <aside
+      className={`reference-sidebar${dragging ? " is-dragging" : ""}`}
+      data-testid="reference-dropzone"
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!busy) setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (!busy && event.dataTransfer.files?.length) {
+          submit(event.dataTransfer.files);
+        }
+      }}
+    >
       <div className="section-heading compact">
         <div>
           <span className="eyebrow">VOICE BANK</span>
@@ -56,7 +75,7 @@ export function ReferenceSidebar({ projectId, references, busy, onAdd, onDelete 
               <small>{reference.source_filename}</small>
               <span>{reference.duration_sec.toFixed(1)} sec</span>
             </div>
-            <audio controls preload="none" src={`/media/projects/${projectId}/${reference.copied_path}`} />
+            <audio className="reference-audio" controls preload="none" src={`/media/projects/${projectId}/${reference.copied_path}`} />
             <button type="button" className="icon-button" aria-label={`参照音声を削除: ${reference.label}`} disabled={busy} onClick={() => onDelete(reference.id)}>×</button>
           </article>
         ))}

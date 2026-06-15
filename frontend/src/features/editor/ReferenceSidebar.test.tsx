@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -18,6 +18,18 @@ describe("ReferenceSidebar", () => {
 
     expect(onAdd).toHaveBeenNthCalledWith(1, "toru", files[0]);
     expect(onAdd).toHaveBeenNthCalledWith(2, "lize", files[1]);
+  });
+
+  it("accepts audio files dropped onto the sidebar", () => {
+    const onAdd = vi.fn();
+    const file = new File(["a"], "toru.wav", { type: "audio/wav" });
+    render(<ReferenceSidebar projectId="project-1" references={[]} busy={false} onAdd={onAdd} onDelete={() => undefined} />);
+
+    fireEvent.drop(screen.getByTestId("reference-dropzone"), {
+      dataTransfer: { files: [file] },
+    });
+
+    expect(onAdd).toHaveBeenCalledWith("toru", file);
   });
 });
 

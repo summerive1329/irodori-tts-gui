@@ -97,6 +97,12 @@ describe("LineMatrix", () => {
     expect(container.querySelector('audio[src*="cells/0.wav"]')).toBeInTheDocument();
   });
 
+  it("renders playback controls with the dedicated larger-audio class", () => {
+    render(<LineMatrix {...matrixProps()} />);
+
+    expect(screen.getByLabelText("音声: toru / hello")).toHaveClass("result-audio");
+  });
+
   it("renders queued cells separately from the actively generating cell", () => {
     const props = matrixProps();
     props.cells = [
