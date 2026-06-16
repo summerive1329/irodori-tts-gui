@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
   getProject: vi.fn(),
   listProjects: vi.fn(),
   markCellPlayed: vi.fn(),
+  startBulkRegenerationJob: vi.fn(),
   startGenerationJob: vi.fn(),
 }));
 
@@ -160,6 +161,59 @@ const projectWithUnplayedCell: Project = {
   ],
 };
 
+const projectWithSelectableCells: Project = {
+  ...project,
+  lines: [{ id: "line-1", text: "hello", order_index: 0 }],
+  references: [
+    {
+      id: "ref-1",
+      label: "toru",
+      source_filename: "toru.wav",
+      copied_path: "references/toru.wav",
+      duration_sec: 1,
+    },
+    {
+      id: "ref-2",
+      label: "lize",
+      source_filename: "lize.wav",
+      copied_path: "references/lize.wav",
+      duration_sec: 1,
+    },
+  ],
+  cells: [
+    {
+      id: "cell-1",
+      line_id: "line-1",
+      reference_id: "ref-1",
+      status: "ready",
+      display_status: "unplayed",
+      error_message: null,
+      current_result: {
+        audio_path: "cells/cell-1.wav",
+        sample_rate: 24000,
+        generated_at: "2026-06-14T00:00:00Z",
+        seed: 7,
+        duration_sec: 1,
+      },
+    },
+    {
+      id: "cell-2",
+      line_id: "line-1",
+      reference_id: "ref-2",
+      status: "ready",
+      display_status: "unplayed",
+      error_message: null,
+      current_result: {
+        audio_path: "cells/cell-2.wav",
+        sample_rate: 24000,
+        generated_at: "2026-06-14T00:00:00Z",
+        seed: 8,
+        duration_sec: 1,
+      },
+    },
+  ],
+};
+
 const projectWithPlayedCell: Project = {
   ...projectWithUnplayedCell,
   cells: [
@@ -193,6 +247,19 @@ describe("App", () => {
     apiMocks.deleteProject.mockResolvedValue(undefined);
     apiMocks.getProject.mockResolvedValue(project);
     apiMocks.markCellPlayed.mockResolvedValue(projectWithPlayedCell);
+    apiMocks.startBulkRegenerationJob.mockResolvedValue({
+      id: "job-regen-bulk",
+      project_id: "project-1",
+      kind: "regenerate_cell",
+      status: "running",
+      total_cells: 2,
+      completed_cells: 0,
+      target_cell_ids: ["cell-1", "cell-2"],
+      active_cell_id: "cell-1",
+      error_message: null,
+      created_at: "2026-06-14T00:00:00Z",
+      updated_at: "2026-06-14T00:00:00Z",
+    });
     apiMocks.startGenerationJob.mockResolvedValue({
       id: "job-started",
       project_id: "project-1",
@@ -398,6 +465,28 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "未生成を実行" }));
 
     expect(await screen.findByText("生成中 2件")).toBeInTheDocument();
+  });
+
+  it("starts bulk regeneration for the currently selected cells", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/projects/project-1");
+    apiMocks.getProject
+      .mockResolvedValueOnce(projectWithSelectableCells)
+      .mockResolvedValueOnce(projectWithSelectableCells);
+
+    render(<AppRouter />);
+
+    await user.click(await screen.findByRole("checkbox", { name: "セル選択: toru / hello" }));
+    await user.click(screen.getByRole("checkbox", { name: "セル選択: lize / hello" }));
+    await user.click(screen.getByRole("button", { name: "選択セルを再生成 (2)" }));
+
+    await waitFor(() =>
+      expect(apiMocks.startBulkRegenerationJob).toHaveBeenCalledWith(
+        "project-1",
+        ["cell-1", "cell-2"],
+        null,
+      ),
+    );
   });
 
   it("posts playback events when audio playback starts", async () => {

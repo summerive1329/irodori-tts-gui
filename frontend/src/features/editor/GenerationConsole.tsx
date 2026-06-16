@@ -6,8 +6,10 @@ type Props = {
   busy: boolean;
   canGenerate: boolean;
   autoPlay: boolean;
+  selectedRegeneratableCount: number;
   onGenerateMissing: () => void;
   onGenerateAll: () => void;
+  onRegenerateSelected: () => void;
   onToggleAutoPlay: (enabled: boolean) => void;
 };
 
@@ -17,8 +19,10 @@ export function GenerationConsole({
   busy,
   canGenerate,
   autoPlay,
+  selectedRegeneratableCount,
   onGenerateMissing,
   onGenerateAll,
+  onRegenerateSelected,
   onToggleAutoPlay,
 }: Props) {
   const status = job?.status === "failed"
@@ -35,6 +39,7 @@ export function GenerationConsole({
       <div className="generation-console-actions">
         <button type="button" className="button button-primary" disabled={busy || !canGenerate} onClick={onGenerateMissing}>未生成を実行</button>
         <button type="button" className="button button-accent" disabled={busy || !canGenerate} onClick={onGenerateAll}>全セルを実行</button>
+        <button type="button" className="button button-quiet" disabled={selectedRegeneratableCount === 0} onClick={onRegenerateSelected}>選択セルを再生成 ({selectedRegeneratableCount})</button>
       </div>
       <div className={`generation-progress${generationProgress.has_running_jobs ? " is-running" : ""}`}>
         <span className="status-dot" />

@@ -30,10 +30,12 @@ type Props = {
   busy: boolean;
   job: GenerationJob | null;
   selectedCellId: string | null;
+  selectedCellIds: string[];
   exportUrl: string | null;
   onBack: () => void;
   onDeleteProject: () => void;
   onSelectCell: (cellId: string) => void;
+  onToggleCellSelection: (cellId: string) => void;
   onImportFiles: (files: File[]) => void;
   onAppendLines: (texts: string[]) => void;
   onAddReference: (label: string, file: File) => void;
@@ -44,6 +46,7 @@ type Props = {
   onClearLines: () => void;
   onReorder: (lineIds: string[]) => void;
   onGenerate: (onlyMissing: boolean) => void;
+  onRegenerateSelected: (cellIds: string[], seed: number | null) => void;
   onRegenerate: (cellId: string, seed: number | null) => void;
   onMarkCellPlayed?: (cellId: string) => void;
   onAppendToPlaylist: (cellId: string) => void;
@@ -61,10 +64,12 @@ export function ProjectEditor({
   busy,
   job,
   selectedCellId,
+  selectedCellIds,
   exportUrl,
   onBack,
   onDeleteProject,
   onSelectCell,
+  onToggleCellSelection,
   onImportFiles,
   onAppendLines,
   onAddReference,
@@ -75,6 +80,7 @@ export function ProjectEditor({
   onClearLines,
   onReorder,
   onGenerate,
+  onRegenerateSelected,
   onRegenerate,
   onMarkCellPlayed,
   onAppendToPlaylist,
@@ -100,6 +106,10 @@ export function ProjectEditor({
   const canGenerate = project.lines.length > 0 && project.references.length > 0;
   const allowRegenerateWhileBusy = busy;
   const hiddenLineIds = new Set(pending ? [pending.line.id] : []);
+  const selectedRegeneratableCellIds = project.cells
+    .filter((cell) => selectedCellIds.includes(cell.id))
+    .filter((cell) => cell.display_status !== "generating" && cell.display_status !== "queued")
+    .map((cell) => cell.id);
   const durationByCellId = Object.fromEntries(
     project.cells.map((cell) => [cell.id, cell.current_result?.duration_sec ?? 0]),
   );
@@ -186,8 +196,10 @@ export function ProjectEditor({
             busy={busy}
             canGenerate={canGenerate}
             autoPlay={autoPlay}
+            selectedRegeneratableCount={selectedRegeneratableCellIds.length}
             onGenerateMissing={() => onGenerate(true)}
             onGenerateAll={() => onGenerate(false)}
+            onRegenerateSelected={() => onRegenerateSelected(selectedRegeneratableCellIds, null)}
             onToggleAutoPlay={setAutoPlay}
           />
 
@@ -201,7 +213,9 @@ export function ProjectEditor({
             autoPlay={autoPlay}
             hiddenLineIds={hiddenLineIds}
             selectedCellId={selectedCellId}
+            selectedCellIds={selectedCellIds}
             onSelectCell={onSelectCell}
+            onToggleCellSelection={onToggleCellSelection}
             allowRegenerateWhileBusy={allowRegenerateWhileBusy}
             onRegenerate={(cellId) => onRegenerate(cellId, null)}
             onMarkCellPlayed={onMarkCellPlayed}

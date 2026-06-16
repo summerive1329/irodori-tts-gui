@@ -35,7 +35,9 @@ function matrixProps() {
     busy: false,
     autoPlay: false,
     selectedCellId: null,
+    selectedCellIds: [],
     onSelectCell: vi.fn(),
+    onToggleCellSelection: vi.fn(),
     onRegenerate: vi.fn(),
     onMarkCellPlayed: vi.fn(),
     onAppendToPlaylist: vi.fn(),
@@ -65,6 +67,17 @@ describe("LineMatrix", () => {
 
     expect(props.onRegenerate).toHaveBeenCalledOnce();
     expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");
+  });
+
+  it("toggles cell selection without changing the focused cell callback", async () => {
+    const user = userEvent.setup();
+    const props = matrixProps();
+    render(<LineMatrix {...props} />);
+
+    await user.click(screen.getByRole("checkbox", { name: "セル選択: toru / hello" }));
+
+    expect(props.onToggleCellSelection).toHaveBeenCalledWith("cell-1");
+    expect(props.onSelectCell).not.toHaveBeenCalled();
   });
 
   it("adds one exact cell to the export playlist", async () => {

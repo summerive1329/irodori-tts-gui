@@ -37,10 +37,12 @@ function props(): ComponentProps<typeof ProjectEditor> {
     busy: false,
     job: null,
     selectedCellId: null,
+    selectedCellIds: [],
     exportUrl: null,
     onBack: vi.fn(),
     onDeleteProject: vi.fn(),
     onSelectCell: vi.fn(),
+    onToggleCellSelection: vi.fn(),
     onImportFiles: vi.fn(),
     onAppendLines: vi.fn(),
     onAddReference: vi.fn(),
@@ -51,6 +53,7 @@ function props(): ComponentProps<typeof ProjectEditor> {
     onClearLines: vi.fn(),
     onReorder: vi.fn(),
     onGenerate: vi.fn(),
+    onRegenerateSelected: vi.fn(),
     onRegenerate: vi.fn(),
     onAppendToPlaylist: vi.fn(),
     onAppendReferenceColumn: vi.fn(),
@@ -118,6 +121,30 @@ describe("ProjectEditor", () => {
     await user.click(screen.getByRole("button", { name: "全セルを実行" }));
 
     expect(editorProps.onGenerate).toHaveBeenCalledWith(false);
+  });
+
+  it("starts bulk regeneration for the selected cells", async () => {
+    const user = userEvent.setup();
+    const editorProps = props();
+    editorProps.selectedCellIds = ["cell-1", "cell-2"];
+    editorProps.project = {
+      ...project,
+      lines: [{ id: "line-1", text: "hello", order_index: 0 }],
+      references: [
+        { id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 },
+        { id: "ref-2", label: "lize", source_filename: "lize.wav", copied_path: "references/lize.wav", duration_sec: 1 },
+      ],
+      cells: [
+        { id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "ready", display_status: "unplayed", error_message: null, current_result: null },
+        { id: "cell-2", line_id: "line-1", reference_id: "ref-2", status: "ready", display_status: "unplayed", error_message: null, current_result: null },
+      ],
+      export_playlist: [],
+    };
+    render(<ProjectEditor {...editorProps} />);
+
+    await user.click(screen.getByRole("button", { name: "選択セルを再生成 (2)" }));
+
+    expect(editorProps.onRegenerateSelected).toHaveBeenCalledWith(["cell-1", "cell-2"], null);
   });
 
   it("keeps regenerate available during a running regeneration job", () => {

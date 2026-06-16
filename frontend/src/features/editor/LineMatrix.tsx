@@ -13,7 +13,9 @@ type Props = {
   autoPlay: boolean;
   hiddenLineIds?: Set<string>;
   selectedCellId: string | null;
+  selectedCellIds: string[];
   onSelectCell: (cellId: string) => void;
+  onToggleCellSelection: (cellId: string) => void;
   onRegenerate: (cellId: string) => void;
   onMarkCellPlayed?: (cellId: string) => void;
   onAppendToPlaylist: (cellId: string) => void;
@@ -45,7 +47,9 @@ export function LineMatrix({
   autoPlay,
   hiddenLineIds = new Set<string>(),
   selectedCellId,
+  selectedCellIds,
   onSelectCell,
+  onToggleCellSelection,
   onRegenerate,
   onMarkCellPlayed,
   onAppendToPlaylist,
@@ -254,16 +258,24 @@ export function LineMatrix({
                     ? `/media/projects/${projectId}/${cell.current_result.audio_path}?v=${encodeURIComponent(cell.current_result.generated_at)}`
                     : null;
                   const isPlayed = cell.display_status === "played";
+                  const isSelected = selectedCellIds.includes(cell.id);
                   const isUnplayed = cell.display_status === "unplayed";
                   const regenerateLocked = (cell.display_status === "generating" || cell.display_status === "queued") || (busy && !allowRegenerateWhileBusy);
                   return (
                     <article
-                      className={`result-cell status-${cell.display_status}${selectedCellId === cell.id ? " is-focused" : ""}${isPlayed ? " is-played" : ""}${isUnplayed ? " is-unplayed" : ""}`}
+                      className={`result-cell status-${cell.display_status}${selectedCellId === cell.id ? " is-focused" : ""}${isSelected ? " is-selected" : ""}${isPlayed ? " is-played" : ""}${isUnplayed ? " is-unplayed" : ""}`}
                       key={cell.id}
                       onClick={() => onSelectCell(cell.id)}
                     >
                       <div className="cell-topline">
                         <span className="status-dot" />
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          aria-label={`セル選択: ${reference.label} / ${line.text}`}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => onToggleCellSelection(cell.id)}
+                        />
                         <span>{displayStatusLabel[cell.display_status]}</span>
                         <button
                           type="button"

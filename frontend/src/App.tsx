@@ -13,6 +13,7 @@ export function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
+  const [selectedCellIds, setSelectedCellIds] = useState<string[]>([]);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [displayJob, setDisplayJob] = useState<GenerationJob | null>(null);
   const [trackedJobIds, setTrackedJobIds] = useState<string[]>([]);
@@ -28,6 +29,7 @@ export function App() {
     if (projectId) setError(null);
     if (projectId) setProject(null);
     setSelectedCellId(null);
+    setSelectedCellIds([]);
     setExportUrl(null);
     setDisplayJob(null);
     setTrackedJobIds([]);
@@ -180,6 +182,7 @@ export function App() {
         busy={busy || trackedJobIds.length > 0}
         job={displayJob}
         selectedCellId={selectedCellId}
+        selectedCellIds={selectedCellIds}
         exportUrl={exportUrl}
         onBack={() => navigate("/")}
         onDeleteProject={async () => {
@@ -195,6 +198,13 @@ export function App() {
           }
         }}
         onSelectCell={setSelectedCellId}
+        onToggleCellSelection={(cellId) => {
+          setSelectedCellIds((current) => (
+            current.includes(cellId)
+              ? current.filter((id) => id !== cellId)
+              : [...current, cellId]
+          ));
+        }}
         onImportFiles={(files) => void runProjectAction(() => api.importLines(project.id, files))}
         onAppendLines={(texts) => void runProjectAction(() => api.appendLines(project.id, texts))}
         onAddReference={(label, file) => {
@@ -209,6 +219,7 @@ export function App() {
         onClearLines={() => void runProjectAction(() => api.clearLines(project.id))}
         onReorder={(lineIds) => void runProjectAction(() => api.reorderLines(project.id, lineIds))}
         onGenerate={(onlyMissing) => void startJob(() => api.startGenerationJob(project.id, onlyMissing))}
+        onRegenerateSelected={(cellIds, seed) => void startJob(() => api.startBulkRegenerationJob(project.id, cellIds, seed))}
         onRegenerate={(cellId, seed) => void startJob(() => api.startRegenerationJob(project.id, cellId, seed))}
         onMarkCellPlayed={(cellId) => void runProjectAction(() => api.markCellPlayed(project.id, cellId))}
         onAppendToPlaylist={(cellId) => void runProjectAction(() => api.appendPlaylistItem(project.id, cellId))}
