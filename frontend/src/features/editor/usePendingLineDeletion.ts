@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 
 import type { LineItem } from "../../types";
 
-const DELETE_DELAY_MS = 5000;
+export const DELETE_DELAY_MS = 5000;
 
 export type PendingLineDeletion = {
   line: LineItem;
+  expiresAt: number;
 };
 
 export function usePendingLineDeletion(onCommitDelete: (lineId: string) => void) {
@@ -26,7 +27,10 @@ export function usePendingLineDeletion(onCommitDelete: (lineId: string) => void)
       onCommitDelete(pendingRef.current.line.id);
     }
 
-    const nextPending = { line };
+    const nextPending = {
+      line,
+      expiresAt: Date.now() + DELETE_DELAY_MS,
+    };
     pendingRef.current = nextPending;
     setPending(nextPending);
     timeoutRef.current = window.setTimeout(() => {
