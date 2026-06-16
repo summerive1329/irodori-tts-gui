@@ -24,6 +24,7 @@ from app.schemas.api import (
 )
 from app.services.export_service import ExportService
 from app.services.generation_service import GenerationService
+from app.services.app_log_service import AppLogService
 from app.services.job_registry import JobRegistry, JobSnapshot
 from app.services.line_import_service import LineImportService
 from app.services.project_store import ProjectStore
@@ -41,6 +42,7 @@ def create_projects_router(
     generation_service: GenerationService,
     export_service: ExportService,
     job_registry: JobRegistry,
+    log_service: AppLogService,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/projects", tags=["projects"])
     project_job_locks: dict[str, Lock] = {}
@@ -172,11 +174,69 @@ def create_projects_router(
             apply_change(latest_cell)
             save_project(latest_project)
         if cell.status == "generating":
-            job_registry.mark_generating(job_id, cell.id)
+            snapshot = job_registry.mark_generating(job_id, cell.id)
+            log_service.log_info(
+                "job_started",
+                project_id=project.id,
+                job_id=job_id,
+                message="Generation started for cell",
+                context={"cell_id": cell.id, "kind": snapshot.kind},
+            )
         elif cell.status == "ready":
-            job_registry.mark_completed(job_id, cell.id)
+            snapshot = job_registry.mark_completed(job_id, cell.id)
+            if snapshot.status == "completed":
+                log_service.log_info(
+                    "job_completed",
+                    project_id=project.id,
+                    job_id=job_id,
+                    message="Generation job completed",
+                    context={"kind": snapshot.kind, "total_cells": snapshot.total_cells},
+                )
         elif cell.status == "error":
             job_registry.mark_failed(job_id, cell.error_message or "Generation failed", cell.id)
+            log_service.log_error(
+                "job_failed",
+                project_id=project.id,
+                job_id=job_id,
+                message=cell.error_message or "Generation failed",
+                context={"cell_id": cell.id},
+            )
+
+    def reject_if_conflicting_job(
+        project_id: str,
+        kind: str,
+        target_cell_ids: list[str],
+    ) -> None:
+        running_jobs = job_registry.list_running_for_project(project_id)
+        if kind in {"generate_all", "generate_missing"} and any(
+            job.kind in {"generate_all", "generate_missing"} for job in running_jobs
+        ):
+            log_service.log_warning(
+                "job_rejected",
+                project_id=project_id,
+                message="A generation job is already running for this project",
+                context={"kind": kind},
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="A generation job is already running for this project",
+            )
+        if kind == "regenerate_cell":
+            target_cell_id_set = set(target_cell_ids)
+            for job in running_jobs:
+                if job.kind != "regenerate_cell":
+                    continue
+                if target_cell_id_set.intersection(job.target_cell_ids):
+                    log_service.log_warning(
+                        "job_rejected",
+                        project_id=project_id,
+                        message="One or more selected cells are already regenerating",
+                        context={"kind": kind},
+                    )
+                    raise HTTPException(
+                        status_code=409,
+                        detail="One or more selected cells are already regenerating",
+                    )
 
     @router.get("")
     def list_projects() -> list[ProjectSummary]:
@@ -349,7 +409,15 @@ def create_projects_router(
             if not payload.only_missing or cell.current_result is None
         ]
         kind = "generate_missing" if payload.only_missing else "generate_all"
+        reject_if_conflicting_job(project.id, kind, target_cell_ids)
         job = job_registry.create(project.id, kind, target_cell_ids)
+        log_service.log_info(
+            "job_created",
+            project_id=project.id,
+            job_id=job.id,
+            message="Generation job created",
+            context={"kind": kind, "total_cells": len(target_cell_ids)},
+        )
         queue_cells(project_id, target_cell_ids)
 
         def run() -> None:
@@ -364,6 +432,13 @@ def create_projects_router(
                 except Exception as exc:
                     if job_registry.get(job.id).status == "running":
                         job_registry.mark_failed(job.id, str(exc))
+                        log_service.log_error(
+                            "job_failed",
+                            project_id=project.id,
+                            job_id=job.id,
+                            message=str(exc),
+                            context={"kind": kind},
+                        )
 
         if target_cell_ids:
             start_worker(run)
@@ -400,7 +475,15 @@ def create_projects_router(
                 project.get_cell(cell_id)
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
+        reject_if_conflicting_job(project.id, "regenerate_cell", cell_ids)
         job = job_registry.create(project.id, "regenerate_cell", cell_ids)
+        log_service.log_info(
+            "job_created",
+            project_id=project.id,
+            job_id=job.id,
+            message="Bulk regeneration job created",
+            context={"kind": job.kind, "total_cells": len(cell_ids)},
+        )
         queue_cells(project_id, cell_ids)
 
         def run() -> None:
@@ -419,6 +502,13 @@ def create_projects_router(
                 except Exception as exc:
                     if job_registry.get(job.id).status == "running":
                         job_registry.mark_failed(job.id, str(exc))
+                        log_service.log_error(
+                            "job_failed",
+                            project_id=project.id,
+                            job_id=job.id,
+                            message=str(exc),
+                            context={"kind": job.kind},
+                        )
 
         start_worker(run)
         return job
@@ -438,7 +528,15 @@ def create_projects_router(
             project.get_cell(cell_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        reject_if_conflicting_job(project.id, "regenerate_cell", [cell_id])
         job = job_registry.create(project.id, "regenerate_cell", [cell_id])
+        log_service.log_info(
+            "job_created",
+            project_id=project.id,
+            job_id=job.id,
+            message="Regeneration job created",
+            context={"kind": job.kind, "total_cells": 1, "cell_id": cell_id},
+        )
         queue_cells(project_id, [cell_id])
 
         def run() -> None:
@@ -456,6 +554,13 @@ def create_projects_router(
                 except Exception as exc:
                     if job_registry.get(job.id).status == "running":
                         job_registry.mark_failed(job.id, str(exc), cell_id)
+                        log_service.log_error(
+                            "job_failed",
+                            project_id=project.id,
+                            job_id=job.id,
+                            message=str(exc),
+                            context={"kind": job.kind, "cell_id": cell_id},
+                        )
 
         start_worker(run)
         return job

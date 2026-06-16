@@ -563,6 +563,83 @@ def test_multiple_regeneration_jobs_can_be_queued_while_busy(tmp_path: Path) -> 
         _wait_for_job(client, project_id, second.json()["id"])
 
 
+def test_duplicate_regeneration_start_returns_conflict(tmp_path: Path) -> None:
+    runtime_manager = RegenerationBlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+
+    first = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regeneration-jobs",
+        json={"seed": 11},
+    )
+    assert first.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    second = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regeneration-jobs",
+        json={"seed": 12},
+    )
+
+    runtime_manager.allow_regeneration.set()
+    _wait_for_job(client, project_id, first.json()["id"])
+    assert second.status_code == 409
+
+
+def test_logs_endpoint_includes_job_rejection_and_completion(tmp_path: Path) -> None:
+    runtime_manager = RegenerationBlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+    generated = client.get(f"/api/projects/{project_id}").json()
+    cell_id = generated["cells"][0]["id"]
+
+    first = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regeneration-jobs",
+        json={"seed": 11},
+    )
+    assert first.status_code == 202
+    assert runtime_manager.started.wait(timeout=1)
+
+    rejected = client.post(
+        f"/api/projects/{project_id}/cells/{cell_id}/regeneration-jobs",
+        json={"seed": 12},
+    )
+    assert rejected.status_code == 409
+
+    runtime_manager.allow_regeneration.set()
+    _wait_for_job(client, project_id, first.json()["id"])
+
+    logs = client.get(f"/api/logs?project_id={project_id}")
+
+    assert logs.status_code == 200
+    events = [entry["event"] for entry in logs.json()]
+    assert "job_rejected" in events
+    assert "job_completed" in events
+
+
 def test_cell_display_status_is_error_after_generation_failure(tmp_path: Path) -> None:
     client = _client(tmp_path, ErrorRuntimeManager())
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]

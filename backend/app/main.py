@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.projects import create_projects_router
+from app.services.app_log_service import AppLogService
 from app.services.export_service import ExportService
 from app.services.generation_service import GenerationService
 from app.services.job_registry import JobRegistry
@@ -25,6 +26,7 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
     resolved_data_dir.mkdir(parents=True, exist_ok=True)
     store = ProjectStore(resolved_data_dir)
     runtime_backend = runtime_manager or RuntimeManager()
+    log_service = AppLogService()
 
     app = FastAPI(title="Irodori Studio", version="0.1.0")
     app.add_middleware(
@@ -42,6 +44,7 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
             generation_service=GenerationService(runtime_backend, resolved_data_dir),
             export_service=ExportService(resolved_data_dir),
             job_registry=JobRegistry(),
+            log_service=log_service,
         )
     )
     app.mount("/media", StaticFiles(directory=resolved_data_dir, check_dir=False), name="media")
@@ -49,6 +52,10 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/api/logs")
+    def list_logs(project_id: str | None = None) -> list[dict]:
+        return [entry.model_dump(mode="json") for entry in log_service.list_entries(project_id=project_id)]
 
     return app
 
