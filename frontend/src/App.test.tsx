@@ -35,10 +35,21 @@ const jobHookControls = vi.hoisted(() => ({
   } | null,
 }));
 
+const frontendLogStoreMocks = vi.hoisted(() => ({
+  enqueue: vi.fn(),
+  flush: vi.fn().mockResolvedValue(undefined),
+  sessionId: "session-test",
+  createFrontendLogStore: vi.fn(),
+}));
+
 vi.mock("./api/client", async () => {
   const actual = await vi.importActual<typeof import("./api/client")>("./api/client");
   return { ...actual, ...apiMocks };
 });
+
+vi.mock("./features/logging/frontendLogStore", () => ({
+  createFrontendLogStore: frontendLogStoreMocks.createFrontendLogStore,
+}));
 
 vi.mock("./features/editor/useProjectJobs", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
@@ -242,6 +253,11 @@ describe("App", () => {
     jobHookControls.calls = [];
     jobHookControls.seedTrackedJobIds = null;
     jobHookControls.seedDisplayJob = null;
+    frontendLogStoreMocks.createFrontendLogStore.mockReturnValue({
+      enqueue: frontendLogStoreMocks.enqueue,
+      flush: frontendLogStoreMocks.flush,
+      sessionId: frontendLogStoreMocks.sessionId,
+    });
     window.history.pushState({}, "", "/");
     apiMocks.listProjects.mockResolvedValue([]);
     apiMocks.createProject.mockResolvedValue(project);
@@ -536,8 +552,95 @@ describe("App", () => {
     );
   });
 
+  it("records selection-mode actions in the frontend log store", async () => {
+    const user = userEvent.setup();
+    apiMocks.getProject
+      .mockResolvedValueOnce(projectWithSelectableCells)
+      .mockResolvedValueOnce(projectWithSelectableCells);
+
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<App />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "複数選択で再生成" }));
+    await user.click(screen.getAllByText("未再生")[0]);
+    await user.click(screen.getAllByText("未再生")[1]);
+    await user.click(screen.getByRole("button", { name: "選択セルを再生成 (2)" }));
+
+    expect(frontendLogStoreMocks.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      level: "info",
+      event: "selection_mode_entered",
+      projectId: "project-1",
+    }));
+    expect(frontendLogStoreMocks.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      level: "info",
+      event: "cell_selection_toggled",
+      projectId: "project-1",
+      context: expect.objectContaining({
+        cell_id: "cell-1",
+        selected_cell_count: 1,
+      }),
+    }));
+    expect(frontendLogStoreMocks.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      level: "info",
+      event: "bulk_regeneration_requested",
+      projectId: "project-1",
+      context: expect.objectContaining({
+        selected_cell_count: 2,
+      }),
+    }));
+  });
+
+  it("records API failures in the frontend log store", async () => {
+    const user = userEvent.setup();
+    apiMocks.getProject.mockResolvedValue(projectWithCells);
+    apiMocks.startGenerationJob.mockRejectedValue(new Error("network down"));
+
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<App />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "未生成を実行" }));
+
+    await waitFor(() => expect(frontendLogStoreMocks.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      level: "error",
+      event: "api_request_failed",
+      projectId: "project-1",
+      message: "network down",
+    })));
+  });
+
+  it("records unhandled frontend errors in the frontend log store", async () => {
+    apiMocks.getProject.mockResolvedValue(projectWithCells);
+
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<App />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByDisplayValue("demo");
+
+    window.dispatchEvent(new ErrorEvent("error", { message: "boom" }));
+
+    await waitFor(() => expect(frontendLogStoreMocks.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      level: "error",
+      event: "unhandled_frontend_error",
+      projectId: "project-1",
+      message: "boom",
+    })));
+  });
+
   it("renders fetched project logs for the active project", async () => {
-    window.history.pushState({}, "", "/projects/project-1");
     apiMocks.getProject.mockResolvedValue(projectWithCells);
     apiMocks.getProjectLogs.mockResolvedValue([
       {
@@ -553,9 +656,16 @@ describe("App", () => {
       },
     ]);
 
-    render(<AppRouter />);
+    render(
+      <MemoryRouter initialEntries={["/projects/project-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<App />} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText("job_rejected")).toBeInTheDocument();
+    expect(screen.getByText("backend")).toBeInTheDocument();
   });
 
   it("posts playback events when audio playback starts", async () => {

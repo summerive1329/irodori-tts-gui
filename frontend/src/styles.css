@@ -274,10 +274,33 @@ body::before {
 .line-insert-form input { width: 100%; border: 0; border-bottom: 1px solid var(--ink); padding: 7px; background: var(--paper); outline: none; }
 .line-insert-form .button { padding: 7px 12px; }
 .drop-hint { position: absolute; right: 12px; color: var(--green); font-size: 10px; font-weight: 800; }
-.result-cell { display: grid; grid-template-rows: auto auto minmax(1.5rem, auto) auto auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; }
+.result-cell { position: relative; display: grid; grid-template-rows: auto auto minmax(1.5rem, auto) auto auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; overflow: hidden; }
 .result-cell.is-focused { box-shadow: inset 0 0 0 2px var(--orange); background: #fffaf0; }
 .result-cell.status-unplayed,
 .result-cell.is-unplayed { background: rgba(247, 215, 199, 0.68); }
+.result-cell.is-selected {
+  box-shadow: inset 0 0 0 3px var(--blue);
+  background-image: linear-gradient(135deg, rgba(45, 121, 199, 0.14), rgba(45, 121, 199, 0.03));
+}
+.result-cell.is-selected::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 22px solid var(--blue);
+  border-left: 22px solid transparent;
+  pointer-events: none;
+}
+.result-cell.is-selected::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed rgba(45, 121, 199, 0.52);
+  border-radius: 10px;
+  pointer-events: none;
+}
 .cell-topline { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #aaa; }
 .status-not_generated .status-dot { background: #8b8f97; }
@@ -330,20 +353,39 @@ body::before {
 .pending-delete-toast strong { display: block; font-size: 13px; }
 .pending-delete-toast p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .playlist-panel { padding: 24px 22px; }
+.project-log-panel { border-top: 1px solid var(--line); padding: 24px 22px; }
 .playlist-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
 .playlist-header-actions { display: grid; justify-items: end; gap: 8px; }
 .playlist-header h2 { margin: 6px 0 0; font: 500 27px/1 "Iowan Old Style", "Yu Mincho", serif; }
 .playlist-count { color: var(--orange); font: 500 30px/1 "Iowan Old Style", serif; }
 .playlist-summary { margin: 7px 0 0; color: var(--muted); font-size: 10px; font-weight: 800; }
 .playlist-empty { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.playlist-list { display: grid; gap: 8px; margin-top: 14px; max-height: 26vh; overflow: auto; }
 .playlist-items { display: grid; max-height: 34vh; margin: 14px 0; padding: 0; overflow: auto; list-style: none; }
 .playlist-item { display: grid; grid-template-columns: 26px 24px minmax(0, 1fr) 25px; gap: 7px; align-items: center; border: 1px solid var(--line); padding: 9px; background: #fbf8ef; }
+.project-log-panel .playlist-item { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
 .playlist-drag-handle, .playlist-remove { width: 25px; height: 25px; border: 1px solid var(--line); background: transparent; cursor: grab; }
 .playlist-remove { cursor: pointer; }
 .playlist-item-copy { min-width: 0; }
 .playlist-item-copy strong, .playlist-item-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .playlist-item-copy strong { font-size: 11px; }
 .playlist-item-copy small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.project-log-panel .playlist-item-copy p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.log-source-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(32, 36, 31, 0.08);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.log-source-pill.source-backend { background: var(--green-soft); color: var(--green); }
+.log-source-pill.source-frontend { background: var(--blue-soft); color: var(--blue); }
 .playlist-index { color: var(--orange); font-family: "Iowan Old Style", serif; }
 .playlist-drop-slot { display: grid; place-items: center; min-height: 7px; color: var(--green); font-size: 9px; font-weight: 800; }
 .playlist-drop-slot.is-active { min-height: 26px; border: 1px dashed var(--green); background: var(--green-soft); }

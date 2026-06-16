@@ -277,8 +277,11 @@ export function ProjectEditor({
               <div className="playlist-list">
                 {projectLogs.map((entry) => (
                   <article key={entry.id} className="playlist-item">
-                    <strong>{entry.event}</strong>
-                    <p>{entry.message}</p>
+                    <span className={`log-source-pill source-${entry.source}`}>{entry.source}</span>
+                    <div className="playlist-item-copy">
+                      <strong>{entry.event}</strong>
+                      <p>{entry.message}</p>
+                    </div>
                   </article>
                 ))}
               </div>

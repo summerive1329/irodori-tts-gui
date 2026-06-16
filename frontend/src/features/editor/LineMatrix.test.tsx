@@ -36,7 +36,7 @@ function matrixProps() {
     autoPlay: false,
     selectionMode: false,
     selectedCellId: null,
-    selectedCellIds: [],
+    selectedCellIds: [] as string[],
     onSelectCell: vi.fn(),
     onToggleCellSelection: vi.fn(),
     onRegenerate: vi.fn(),
@@ -80,6 +80,16 @@ describe("LineMatrix", () => {
 
     expect(props.onToggleCellSelection).toHaveBeenCalledWith("cell-1");
     expect(props.onSelectCell).not.toHaveBeenCalled();
+  });
+
+  it("applies the selected visual class to already-selected cells", () => {
+    const props = matrixProps();
+    props.selectionMode = true;
+    props.selectedCellIds = ["cell-2"];
+    render(<LineMatrix {...props} />);
+
+    expect(screen.getByLabelText("音声: lize / hello").closest("article")).toHaveClass("is-selected");
+    expect(screen.getByLabelText("音声: toru / hello").closest("article")).not.toHaveClass("is-selected");
   });
 
   it("keeps buttons usable during selection mode without toggling selection", async () => {
