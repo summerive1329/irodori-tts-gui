@@ -44,6 +44,11 @@ class RegenerateCellRequest(BaseModel):
     seed: int | None = None
 
 
+class RegenerateCellsRequest(BaseModel):
+    cell_ids: list[str]
+    seed: int | None = None
+
+
 class PlaylistAppendRequest(BaseModel):
     cell_id: str
 

@@ -17,6 +17,7 @@ from app.schemas.api import (
     PlaylistAppendRequest,
     PlaylistReorderRequest,
     RegenerateCellRequest,
+    RegenerateCellsRequest,
     ReorderLinesRequest,
     UpdateLineRequest,
     UpdateProjectRequest,
@@ -377,6 +378,49 @@ def create_projects_router(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         if job.project_id != project_id:
             raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+        return job
+
+    @router.post(
+        "/{project_id}/cells/regeneration-jobs",
+        response_model=JobSnapshot,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def start_bulk_regeneration_job(
+        project_id: str,
+        payload: RegenerateCellsRequest,
+    ) -> JobSnapshot:
+        cell_ids = list(dict.fromkeys(payload.cell_ids))
+        if not cell_ids:
+            raise HTTPException(status_code=400, detail="At least one cell is required")
+        if len(cell_ids) != len(payload.cell_ids):
+            raise HTTPException(status_code=400, detail="Duplicate cell ids are not allowed")
+        project = load_project(project_id)
+        for cell_id in cell_ids:
+            try:
+                project.get_cell(cell_id)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+        job = job_registry.create(project.id, "regenerate_cell", cell_ids)
+        queue_cells(project_id, cell_ids)
+
+        def run() -> None:
+            with get_project_job_lock(project_id):
+                worker_project = load_project(project_id)
+                try:
+                    for target_cell_id in cell_ids:
+                        generation_service.regenerate_cell(
+                            worker_project,
+                            target_cell_id,
+                            seed=payload.seed,
+                            on_state_change=lambda current, changed: persist_job_state(
+                                job.id, current, changed
+                            ),
+                        )
+                except Exception as exc:
+                    if job_registry.get(job.id).status == "running":
+                        job_registry.mark_failed(job.id, str(exc))
+
+        start_worker(run)
         return job
 
     @router.post(

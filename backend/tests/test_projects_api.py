@@ -218,6 +218,40 @@ def test_generate_and_regenerate_jobs_update_only_target_cells(tmp_path: Path) -
     assert after["cells"][1]["current_result"] == untouched
 
 
+def test_bulk_regeneration_job_reprocesses_selected_cells(tmp_path: Path) -> None:
+    runtime_manager = FakeRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    )
+    assert started.status_code == 202
+    _wait_for_job(client, project_id, started.json()["id"])
+
+    generated = client.get(f"/api/projects/{project_id}").json()
+    selected_ids = [generated["cells"][0]["id"], generated["cells"][1]["id"]]
+
+    regen = client.post(
+        f"/api/projects/{project_id}/cells/regeneration-jobs",
+        json={"cell_ids": selected_ids, "seed": 55},
+    )
+
+    assert regen.status_code == 202
+    _wait_for_job(client, project_id, regen.json()["id"])
+    assert runtime_manager.generated_cells == 4
+
+    refreshed = client.get(f"/api/projects/{project_id}").json()
+    assert [cell["current_result"]["seed"] for cell in refreshed["cells"]] == [55, 55]
+
+
 def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: Path) -> None:
     runtime_manager = BlockingRuntimeManager()
     client = _client(tmp_path, runtime_manager)
