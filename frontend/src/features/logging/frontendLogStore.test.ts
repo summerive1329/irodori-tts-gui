@@ -7,6 +7,21 @@ afterEach(() => {
 });
 
 describe("frontend log store", () => {
+  it("defaults to window.localStorage when storage is omitted", () => {
+    const store = createFrontendLogStore({ postLogs: vi.fn().mockResolvedValue({ accepted: 0 }) });
+
+    store.enqueue({
+      level: "warning",
+      event: "selection_mode_entered",
+      message: "selection mode entered",
+      context: { selection_mode: true },
+    });
+
+    const stored = window.localStorage.getItem("irodori.frontend-log-queue");
+    expect(stored).toContain("selection_mode_entered");
+    expect(store.snapshot()).toHaveLength(1);
+  });
+
   it("stores frontend log entries in localStorage until flush succeeds", async () => {
     const postLogs = vi.fn().mockResolvedValue({ accepted: 1 });
     const store = createFrontendLogStore({ storage: window.localStorage, postLogs });

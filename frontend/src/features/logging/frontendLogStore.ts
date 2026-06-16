@@ -17,7 +17,7 @@ type FrontendLogInput = {
 type FrontendLogStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 type FrontendLogStoreOptions = {
-  storage: FrontendLogStorage;
+  storage?: FrontendLogStorage;
   postLogs: (entries: FrontendLogPayloadEntry[]) => Promise<{ accepted: number }>;
   now?: () => string;
   sessionId?: string;
@@ -53,9 +53,10 @@ function persistQueue(storage: FrontendLogStorage, queue: FrontendLogPayloadEntr
 }
 
 export function createFrontendLogStore(options: FrontendLogStoreOptions) {
+  const storage = options.storage ?? window.localStorage;
   const sessionId = options.sessionId ?? createSessionId();
   const now = options.now ?? (() => new Date().toISOString());
-  let queue = loadQueue(options.storage);
+  let queue = loadQueue(storage);
 
   function enqueue(input: FrontendLogInput): void {
     queue = [
@@ -74,7 +75,7 @@ export function createFrontendLogStore(options: FrontendLogStoreOptions) {
       },
     ].slice(-MAX_ENTRIES);
 
-    persistQueue(options.storage, queue);
+    persistQueue(storage, queue);
   }
 
   function snapshot(): FrontendLogPayloadEntry[] {
@@ -88,7 +89,7 @@ export function createFrontendLogStore(options: FrontendLogStoreOptions) {
     try {
       await options.postLogs(entries);
       queue = queue.slice(entries.length);
-      persistQueue(options.storage, queue);
+      persistQueue(storage, queue);
     } catch {
       // Keep the queue so a later flush can retry.
     }
