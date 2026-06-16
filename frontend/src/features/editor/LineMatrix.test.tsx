@@ -173,6 +173,23 @@ describe("LineMatrix", () => {
     expect(screen.getByLabelText("音声: toru / hello")).toHaveClass("result-audio");
   });
 
+  it("renders playback controls between the status row and the action row", () => {
+    render(<LineMatrix {...matrixProps()} />);
+
+    const cell = screen.getByLabelText("音声: toru / hello").closest("article");
+
+    expect(cell?.querySelector(".cell-topline")).toBeInTheDocument();
+    expect(cell?.querySelector(".result-audio")).toBeInTheDocument();
+    expect(cell?.querySelector(".cell-actions")).toBeInTheDocument();
+  });
+
+  it("keeps playlist and regenerate actions separated in the action row", () => {
+    render(<LineMatrix {...matrixProps()} />);
+
+    expect(screen.getByRole("button", { name: "リストに追加: toru / hello" })).toHaveClass("cell-action-button");
+    expect(screen.getByRole("button", { name: "再生成: toru / hello" })).toHaveClass("cell-action-button");
+  });
+
   it("renders queued cells separately from the actively generating cell", () => {
     const props = matrixProps();
     props.cells = [

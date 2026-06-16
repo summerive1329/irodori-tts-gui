@@ -12,9 +12,10 @@ export function PendingDeleteToast({ pending, onUndo }: Props) {
 
   useEffect(() => {
     if (!pending) return;
+    const currentPending = pending;
 
     function updateProgress() {
-      const remaining = Math.max(0, pending.expiresAt - Date.now());
+      const remaining = Math.max(0, currentPending.expiresAt - Date.now());
       setProgress(remaining / DELETE_DELAY_MS);
     }
 

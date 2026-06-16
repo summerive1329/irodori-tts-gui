@@ -368,18 +368,6 @@ export function LineMatrix({
                       <div className="cell-topline">
                         <span className="status-dot" />
                         <span>{displayStatusLabel[cell.display_status]}</span>
-                        <button
-                          type="button"
-                          className="playlist-add-button"
-                          disabled={busy || !cell.current_result}
-                          aria-label={`リストに追加: ${reference.label} / ${line.text}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onAppendToPlaylist(cell.id);
-                          }}
-                        >
-                          ＋ リスト
-                        </button>
                       </div>
                       {audioUrl ? (
                         <audio
@@ -402,18 +390,32 @@ export function LineMatrix({
                       <div className="cell-message-slot">
                         {cell.error_message ? <p className="cell-error">{cell.error_message}</p> : null}
                       </div>
-                      <button
-                        type="button"
-                        className="regen-button"
-                        aria-label={`再生成: ${reference.label} / ${line.text}`}
-                        disabled={regenerateLocked}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRegenerate(cell.id);
-                        }}
-                      >
-                        再生成
-                      </button>
+                      <div className="cell-actions">
+                        <button
+                          type="button"
+                          className="cell-action-button playlist-add-button"
+                          disabled={busy || !cell.current_result}
+                          aria-label={`リストに追加: ${reference.label} / ${line.text}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onAppendToPlaylist(cell.id);
+                          }}
+                        >
+                          ＋ リスト
+                        </button>
+                        <button
+                          type="button"
+                          className="cell-action-button regen-button"
+                          aria-label={`再生成: ${reference.label} / ${line.text}`}
+                          disabled={regenerateLocked}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRegenerate(cell.id);
+                          }}
+                        >
+                          再生成
+                        </button>
+                      </div>
                     </article>
                   );
                 })}

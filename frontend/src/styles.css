@@ -180,9 +180,9 @@ body::before {
 .reference-meta strong, .reference-meta small, .reference-meta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reference-meta small, .reference-meta span { color: var(--muted); font-size: 10px; }
 .reference-card audio { grid-column: 1 / -1; margin-top: 6px; }
-.reference-audio,
+.reference-audio { height: 46px; }
 .result-audio,
-.detail-audio { height: 46px; }
+.detail-audio { height: 54px; }
 .icon-button { position: absolute; top: 5px; right: 5px; border: 0; background: transparent; cursor: pointer; font-size: 18px; }
 
 .editor-main { min-width: 0; padding: 20px; }
@@ -308,7 +308,7 @@ body::before {
 .line-insert-form input { width: 100%; border: 0; border-bottom: 1px solid var(--ink); padding: 7px; background: var(--paper); outline: none; }
 .line-insert-form .button { padding: 7px 12px; }
 .drop-hint { position: absolute; right: 12px; color: var(--green); font-size: 10px; font-weight: 800; }
-.result-cell { position: relative; display: grid; grid-template-rows: auto auto minmax(1.5rem, auto) auto auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; overflow: hidden; }
+.result-cell { position: relative; display: grid; grid-template-rows: auto auto minmax(1.5rem, auto) auto; gap: 12px; min-height: 164px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px; background: rgba(255, 255, 255, 0.24); cursor: pointer; overflow: hidden; }
 .result-cell.is-focused { box-shadow: inset 0 0 0 2px var(--orange); background: #fffaf0; }
 .result-cell.status-unplayed,
 .result-cell.is-unplayed { background: rgba(247, 215, 199, 0.68); }
@@ -343,10 +343,26 @@ body::before {
 .status-unplayed .status-dot { background: var(--orange); }
 .status-played .status-dot { background: var(--green); }
 .status-error .status-dot { background: var(--danger); }
-.playlist-add-button { margin-left: auto; border: 0; border-bottom: 1px solid var(--green); padding: 2px 0; background: transparent; color: var(--green); cursor: pointer; font-size: 10px; font-weight: 800; }
-.playlist-add-button:disabled { opacity: 0.35; cursor: not-allowed; }
-.audio-placeholder { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--muted); font-size: 11px; }
-.regen-button { justify-self: end; border: 0; border-bottom: 1px solid var(--ink); padding: 3px 0; background: transparent; cursor: pointer; font-size: 11px; font-weight: 800; }
+.audio-placeholder { display: grid; place-items: center; min-height: 54px; border: 1px dashed var(--line); color: var(--muted); font-size: 11px; }
+.cell-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cell-action-button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+.cell-action-button:disabled { opacity: 0.35; cursor: not-allowed; }
+.playlist-add-button { color: var(--green); }
+.regen-button { color: var(--ink); }
 .cell-error { margin: 0; color: var(--danger); font-size: 11px; }
 .cell-message-slot { min-height: 1.5rem; }
 .empty-state { display: grid; place-items: center; min-height: 420px; text-align: center; }
