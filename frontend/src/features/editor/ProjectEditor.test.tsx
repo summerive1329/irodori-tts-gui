@@ -38,6 +38,7 @@ function props(): ComponentProps<typeof ProjectEditor> {
     job: null,
     selectedCellId: null,
     selectedCellIds: [],
+    projectLogs: [],
     exportUrl: null,
     onBack: vi.fn(),
     onDeleteProject: vi.fn(),
@@ -248,6 +249,27 @@ describe("ProjectEditor", () => {
     expect(screen.getByText("生成中 2件")).toBeInTheDocument();
     expect(screen.getByText("実行中: 1行目 / toru")).toBeInTheDocument();
     expect(screen.getByText("待機中: 3行目 / lize")).toBeInTheDocument();
+  });
+
+  it("renders recent project logs", () => {
+    const editorProps = props();
+    editorProps.projectLogs = [
+      {
+        id: "log-1",
+        timestamp: "2026-06-16T00:00:00Z",
+        level: "warning",
+        event: "job_rejected",
+        project_id: "project-1",
+        job_id: null,
+        message: "One or more selected cells are already regenerating",
+        context: {},
+      },
+    ];
+
+    render(<ProjectEditor {...editorProps} />);
+
+    expect(screen.getByText("job_rejected")).toBeInTheDocument();
+    expect(screen.getByText("One or more selected cells are already regenerating")).toBeInTheDocument();
   });
 
   it("inserts a line at the requested position", async () => {

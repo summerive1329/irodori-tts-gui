@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { GenerationJob, Project } from "../../types";
+import type { AppLogEntry, GenerationJob, Project } from "../../types";
 import { CellDetailPane } from "./CellDetailPane";
 import { ExportPlaylist } from "./ExportPlaylist";
 import { GenerationConsole } from "./GenerationConsole";
@@ -31,6 +31,7 @@ type Props = {
   job: GenerationJob | null;
   selectedCellId: string | null;
   selectedCellIds: string[];
+  projectLogs: AppLogEntry[];
   exportUrl: string | null;
   onBack: () => void;
   onDeleteProject: () => void;
@@ -65,6 +66,7 @@ export function ProjectEditor({
   job,
   selectedCellId,
   selectedCellIds,
+  projectLogs,
   exportUrl,
   onBack,
   onDeleteProject,
@@ -252,6 +254,26 @@ export function ProjectEditor({
             onExport={onExport}
             onExportText={onExportText}
           />
+          <section className="project-log-panel">
+            <header className="playlist-header">
+              <div>
+                <span className="eyebrow">TRACE LOG</span>
+                <h2>ログ</h2>
+              </div>
+            </header>
+            {projectLogs.length === 0 ? (
+              <p className="playlist-empty">ログはまだありません。</p>
+            ) : (
+              <div className="playlist-list">
+                {projectLogs.map((entry) => (
+                  <article key={entry.id} className="playlist-item">
+                    <strong>{entry.event}</strong>
+                    <p>{entry.message}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
       <PendingDeleteToast pending={pending} onUndo={undoDelete} />

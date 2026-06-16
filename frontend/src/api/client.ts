@@ -1,4 +1,4 @@
-import type { GenerationJob, Project, ProjectSummary } from "../types";
+import type { AppLogEntry, GenerationJob, Project, ProjectSummary } from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -44,6 +44,10 @@ export function createProject(name: string): Promise<Project> {
 
 export function getProject(projectId: string): Promise<Project> {
   return request(`/api/projects/${projectId}`);
+}
+
+export function getProjectLogs(projectId: string): Promise<AppLogEntry[]> {
+  return request(`/api/logs?project_id=${encodeURIComponent(projectId)}`);
 }
 
 export function updateProject(projectId: string, updates: Partial<Project>): Promise<Project> {

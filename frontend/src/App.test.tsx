@@ -10,6 +10,7 @@ const apiMocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   deleteProject: vi.fn(),
   getProject: vi.fn(),
+  getProjectLogs: vi.fn(),
   listProjects: vi.fn(),
   markCellPlayed: vi.fn(),
   startBulkRegenerationJob: vi.fn(),
@@ -246,6 +247,7 @@ describe("App", () => {
     apiMocks.createProject.mockResolvedValue(project);
     apiMocks.deleteProject.mockResolvedValue(undefined);
     apiMocks.getProject.mockResolvedValue(project);
+    apiMocks.getProjectLogs.mockResolvedValue([]);
     apiMocks.markCellPlayed.mockResolvedValue(projectWithPlayedCell);
     apiMocks.startBulkRegenerationJob.mockResolvedValue({
       id: "job-regen-bulk",
@@ -467,6 +469,50 @@ describe("App", () => {
     expect(await screen.findByText("生成中 2件")).toBeInTheDocument();
   });
 
+  it("disables generation controls while a start request is in flight", async () => {
+    const user = userEvent.setup();
+    let release!: (job: {
+      id: string;
+      project_id: string;
+      kind: "generate_missing" | "generate_all" | "regenerate_cell";
+      status: "running" | "completed" | "failed";
+      total_cells: number;
+      completed_cells: number;
+      target_cell_ids: string[];
+      active_cell_id: string | null;
+      error_message: string | null;
+      created_at: string;
+      updated_at: string;
+    }) => void;
+    window.history.pushState({}, "", "/projects/project-1");
+    apiMocks.getProject.mockResolvedValue(projectWithCells);
+    apiMocks.startGenerationJob.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    render(<AppRouter />);
+
+    await user.click(await screen.findByRole("button", { name: "未生成を実行" }));
+    expect(screen.getByRole("button", { name: "全セルを実行" })).toBeDisabled();
+
+    release({
+      id: "job-started",
+      project_id: "project-1",
+      kind: "generate_missing",
+      status: "running",
+      total_cells: 1,
+      completed_cells: 0,
+      target_cell_ids: ["cell-1"],
+      active_cell_id: "cell-1",
+      error_message: null,
+      created_at: "2026-06-14T00:00:00Z",
+      updated_at: "2026-06-14T00:00:00Z",
+    });
+  });
+
   it("starts bulk regeneration for the currently selected cells", async () => {
     const user = userEvent.setup();
     window.history.pushState({}, "", "/projects/project-1");
@@ -487,6 +533,27 @@ describe("App", () => {
         null,
       ),
     );
+  });
+
+  it("renders fetched project logs for the active project", async () => {
+    window.history.pushState({}, "", "/projects/project-1");
+    apiMocks.getProject.mockResolvedValue(projectWithCells);
+    apiMocks.getProjectLogs.mockResolvedValue([
+      {
+        id: "log-1",
+        timestamp: "2026-06-16T00:00:00Z",
+        level: "warning",
+        event: "job_rejected",
+        project_id: "project-1",
+        job_id: null,
+        message: "One or more selected cells are already regenerating",
+        context: {},
+      },
+    ]);
+
+    render(<AppRouter />);
+
+    expect(await screen.findByText("job_rejected")).toBeInTheDocument();
   });
 
   it("posts playback events when audio playback starts", async () => {

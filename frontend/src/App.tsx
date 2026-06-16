@@ -5,7 +5,7 @@ import * as api from "./api/client";
 import { ProjectEditor } from "./features/editor/ProjectEditor";
 import { useProjectJobs } from "./features/editor/useProjectJobs";
 import { ProjectHome } from "./features/projects/ProjectHome";
-import type { GenerationJob, Project, ProjectSummary } from "./types";
+import type { AppLogEntry, GenerationJob, Project, ProjectSummary } from "./types";
 
 export function App() {
   const { projectId } = useParams();
@@ -14,6 +14,7 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [selectedCellIds, setSelectedCellIds] = useState<string[]>([]);
+  const [projectLogs, setProjectLogs] = useState<AppLogEntry[]>([]);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [displayJob, setDisplayJob] = useState<GenerationJob | null>(null);
   const [trackedJobIds, setTrackedJobIds] = useState<string[]>([]);
@@ -30,14 +31,16 @@ export function App() {
     if (projectId) setProject(null);
     setSelectedCellId(null);
     setSelectedCellIds([]);
+    setProjectLogs([]);
     setExportUrl(null);
     setDisplayJob(null);
     setTrackedJobIds([]);
 
     const request = projectId
-      ? api.getProject(projectId).then((loaded) => {
+      ? Promise.all([api.getProject(projectId), api.getProjectLogs(projectId)]).then(([loaded, logs]) => {
           if (!cancelled) {
             setProject(loaded);
+            setProjectLogs(logs);
             setRouteLoading(false);
           }
         })
@@ -81,15 +84,29 @@ export function App() {
     setError(reason instanceof Error ? reason.message : String(reason));
   }
 
+  async function refreshProjectLogs(activeProjectId: string) {
+    setProjectLogs(await api.getProjectLogs(activeProjectId));
+  }
+
   async function runProjectAction(action: () => Promise<Project>) {
     setBusy(true);
     setError(null);
     try {
       const updated = await action();
       setProject(updated);
+      if (projectId) {
+        await refreshProjectLogs(projectId);
+      }
       return updated;
     } catch (reason) {
       showError(reason);
+      if (projectId) {
+        try {
+          await refreshProjectLogs(projectId);
+        } catch {
+          // Ignore log refresh failures while showing the main error.
+        }
+      }
       return null;
     } finally {
       setBusy(false);
@@ -105,16 +122,33 @@ export function App() {
         setDisplayJob(started);
         setTrackedJobIds((current) => [...new Set([...current, started.id])]);
         if (projectId) {
-          setProject(await api.getProject(projectId));
+          const [updatedProject, logs] = await Promise.all([
+            api.getProject(projectId),
+            api.getProjectLogs(projectId),
+          ]);
+          setProject(updatedProject);
+          setProjectLogs(logs);
         }
       } else if (trackedJobIds.length === 0) {
         setDisplayJob(started);
       }
       if (started.status !== "running" && projectId) {
-        setProject(await api.getProject(projectId));
+        const [updatedProject, logs] = await Promise.all([
+          api.getProject(projectId),
+          api.getProjectLogs(projectId),
+        ]);
+        setProject(updatedProject);
+        setProjectLogs(logs);
       }
     } catch (reason) {
       showError(reason);
+      if (projectId) {
+        try {
+          await refreshProjectLogs(projectId);
+        } catch {
+          // Ignore log refresh failures while showing the main error.
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -183,6 +217,7 @@ export function App() {
         job={displayJob}
         selectedCellId={selectedCellId}
         selectedCellIds={selectedCellIds}
+        projectLogs={projectLogs}
         exportUrl={exportUrl}
         onBack={() => navigate("/")}
         onDeleteProject={async () => {
