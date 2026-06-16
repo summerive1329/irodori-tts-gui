@@ -29,7 +29,7 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
     runtime_backend = runtime_manager or RuntimeManager()
     logs_dir = resolved_data_dir.parent / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    session_log_path = logs_dir / f"app-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
+    session_log_path = logs_dir / f"app-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
     log_service = AppLogService(log_path=session_log_path)
 
     app = FastAPI(title="Irodori Studio", version="0.1.0")
