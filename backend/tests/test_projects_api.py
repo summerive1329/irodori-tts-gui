@@ -61,6 +61,23 @@ class RegenerationBlockingRuntimeManager(FakeRuntimeManager):
         return super().synthesize(prepared, text, output_path, parameters)
 
 
+class SecondCellBlockingRuntimeManager(FakeRuntimeManager):
+    def __init__(self) -> None:
+        super().__init__()
+        self.second_started = Event()
+        self.allow_second = Event()
+        self._generation_calls = 0
+
+    def synthesize(self, prepared, text, output_path: Path, parameters) -> GenerationArtifact:
+        if parameters.seed is None:
+            self._generation_calls += 1
+            if self._generation_calls == 2:
+                self.second_started.set()
+                if not self.allow_second.wait(timeout=3):
+                    raise TimeoutError("Timed out waiting to release second generation")
+        return super().synthesize(prepared, text, output_path, parameters)
+
+
 class ErrorRuntimeManager(FakeRuntimeManager):
     def synthesize(self, prepared, text, output_path: Path, parameters) -> GenerationArtifact:
         raise RuntimeError("boom")
@@ -380,6 +397,34 @@ def test_project_payload_excludes_completed_jobs_from_running_count(tmp_path: Pa
     assert final_project["generation_progress"]["running_job_count"] == 0
     assert final_project["generation_progress"]["running_job_kinds"] == []
     assert final_project["generation_progress"]["has_running_jobs"] is False
+
+
+def test_running_job_count_decrements_as_cells_complete(tmp_path: Path) -> None:
+    runtime_manager = SecondCellBlockingRuntimeManager()
+    client = _client(tmp_path, runtime_manager)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    )
+    assert started.status_code == 202
+    assert runtime_manager.second_started.wait(timeout=1)
+
+    running = client.get(f"/api/projects/{project_id}").json()
+    assert running["generation_progress"]["running_job_count"] == 1
+
+    runtime_manager.allow_second.set()
+    _wait_for_job(client, project_id, started.json()["id"])
+
+    final_project = client.get(f"/api/projects/{project_id}").json()
+    assert final_project["generation_progress"]["running_job_count"] == 0
 
 
 def test_cells_start_as_not_generated_and_become_unplayed_after_generation(tmp_path: Path) -> None:

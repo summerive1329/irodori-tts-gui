@@ -90,7 +90,10 @@ def create_projects_router(
         return ProjectWithGenerationProgress(
             **project.model_dump(exclude={"generation_progress"}),
             generation_progress=GenerationProgress(
-                running_job_count=sum(job.total_cells for job in running_jobs),
+                running_job_count=sum(
+                    max(job.total_cells - job.completed_cells, 0)
+                    for job in running_jobs
+                ),
                 running_job_kinds=[job.kind for job in running_jobs],
                 has_running_jobs=bool(running_jobs),
                 active_jobs=active_jobs,
