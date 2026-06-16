@@ -685,6 +685,32 @@ def test_logs_endpoint_includes_job_rejection_and_completion(tmp_path: Path) -> 
     assert "job_completed" in events
 
 
+def test_logs_are_written_to_timestamped_file(tmp_path: Path) -> None:
+    client = _client(tmp_path, FakeRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    )
+    assert started.status_code == 202
+    _wait_for_job(client, project_id, started.json()["id"])
+
+    logs_dir = tmp_path.parent / "logs"
+    log_files = list(logs_dir.glob("app-*.log"))
+
+    assert len(log_files) == 1
+    content = log_files[0].read_text(encoding="utf-8")
+    assert "job_created" in content
+    assert "job_completed" in content
+
+
 def test_cell_display_status_is_error_after_generation_failure(tmp_path: Path) -> None:
     client = _client(tmp_path, ErrorRuntimeManager())
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]

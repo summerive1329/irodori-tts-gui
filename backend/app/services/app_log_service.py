@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import RLock
 from typing import Literal
 from uuid import uuid4
@@ -29,9 +30,13 @@ class AppLogEntry(BaseModel):
 
 
 class AppLogService:
-    def __init__(self, max_entries: int = 500) -> None:
+    def __init__(self, max_entries: int = 500, log_path: Path | None = None) -> None:
         self._entries: deque[AppLogEntry] = deque(maxlen=max_entries)
         self._lock = RLock()
+        self._log_path = Path(log_path) if log_path is not None else None
+        if self._log_path is not None:
+            self._log_path.parent.mkdir(parents=True, exist_ok=True)
+            self._log_path.touch(exist_ok=True)
 
     def log(
         self,
@@ -53,7 +58,32 @@ class AppLogService:
         )
         with self._lock:
             self._entries.append(entry)
+            self._append_to_file(entry)
         return entry.model_copy(deep=True)
+
+    def _append_to_file(self, entry: AppLogEntry) -> None:
+        if self._log_path is None:
+            return
+        try:
+            context_items = ", ".join(
+                f"{key}={value}"
+                for key, value in sorted(entry.context.items())
+            )
+            line = (
+                f"{entry.timestamp.isoformat()} "
+                f"[{entry.level}] "
+                f"{entry.event} "
+                f"project_id={entry.project_id or '-'} "
+                f"job_id={entry.job_id or '-'} "
+                f"{entry.message}"
+            )
+            if context_items:
+                line = f"{line} | {context_items}"
+            with self._log_path.open("a", encoding="utf-8") as handle:
+                handle.write(f"{line}\n")
+        except OSError:
+            # Logging should not take down the application path.
+            return
 
     def log_info(
         self,
