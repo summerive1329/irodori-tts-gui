@@ -52,6 +52,53 @@ function persistQueue(storage: FrontendLogStorage, queue: FrontendLogPayloadEntr
   storage.setItem(STORAGE_KEY, JSON.stringify(queue));
 }
 
+function entryKey(entry: FrontendLogPayloadEntry): string {
+  return JSON.stringify(entry);
+}
+
+function mergeQueues(
+  persisted: FrontendLogPayloadEntry[],
+  local: FrontendLogPayloadEntry[],
+): FrontendLogPayloadEntry[] {
+  const baseCounts = new Map<string, number>();
+  for (const entry of persisted) {
+    const key = entryKey(entry);
+    baseCounts.set(key, (baseCounts.get(key) ?? 0) + 1);
+  }
+
+  const localSeenCounts = new Map<string, number>();
+  const merged = [...persisted];
+  for (const entry of local) {
+    const key = entryKey(entry);
+    const seenCount = (localSeenCounts.get(key) ?? 0) + 1;
+    localSeenCounts.set(key, seenCount);
+    if (seenCount > (baseCounts.get(key) ?? 0)) {
+      merged.push(entry);
+    }
+  }
+
+  return merged.slice(-MAX_ENTRIES);
+}
+
+function removeEntries(
+  persisted: FrontendLogPayloadEntry[],
+  toRemove: FrontendLogPayloadEntry[],
+): FrontendLogPayloadEntry[] {
+  const removalCounts = new Map<string, number>();
+  for (const entry of toRemove) {
+    const key = entryKey(entry);
+    removalCounts.set(key, (removalCounts.get(key) ?? 0) + 1);
+  }
+
+  return persisted.filter((entry) => {
+    const key = entryKey(entry);
+    const remaining = removalCounts.get(key) ?? 0;
+    if (remaining === 0) return true;
+    removalCounts.set(key, remaining - 1);
+    return false;
+  });
+}
+
 export function createFrontendLogStore(options: FrontendLogStoreOptions) {
   const storage = options.storage ?? window.localStorage;
   const sessionId = options.sessionId ?? createSessionId();
@@ -59,7 +106,7 @@ export function createFrontendLogStore(options: FrontendLogStoreOptions) {
   let queue = loadQueue(storage);
 
   function enqueue(input: FrontendLogInput): void {
-    queue = [
+    queue = mergeQueues(loadQueue(storage), [
       ...queue,
       {
         timestamp: now(),
@@ -69,11 +116,11 @@ export function createFrontendLogStore(options: FrontendLogStoreOptions) {
         job_id: input.jobId ?? null,
         message: input.message,
         context: {
-          session_id: sessionId,
           ...(input.context ?? {}),
+          session_id: sessionId,
         },
       },
-    ].slice(-MAX_ENTRIES);
+    ].slice(-MAX_ENTRIES));
 
     persistQueue(storage, queue);
   }
@@ -88,10 +135,11 @@ export function createFrontendLogStore(options: FrontendLogStoreOptions) {
 
     try {
       await options.postLogs(entries);
-      queue = queue.slice(entries.length);
+      queue = removeEntries(loadQueue(storage), entries);
       persistQueue(storage, queue);
     } catch {
       // Keep the queue so a later flush can retry.
+      queue = mergeQueues(loadQueue(storage), queue);
     }
   }
 
