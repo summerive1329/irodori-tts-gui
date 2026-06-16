@@ -709,14 +709,18 @@ def test_backend_logs_are_tagged_with_backend_source(tmp_path: Path) -> None:
 
 
 def test_backend_logs_are_written_under_backend_directory(tmp_path: Path) -> None:
+    root_logs_dir = tmp_path.parent / "logs"
     backend_logs_dir = tmp_path.parent / "logs" / "backend"
+    existing_root_log_names = {path.name for path in root_logs_dir.glob("app-*.log")} if root_logs_dir.exists() else set()
     existing_log_names = {path.name for path in backend_logs_dir.glob("app-*.log")} if backend_logs_dir.exists() else set()
 
     client = _client(tmp_path)
     client.post("/api/projects", json={"name": "demo"})
 
+    root_log_files = [path for path in root_logs_dir.glob("app-*.log") if path.name not in existing_root_log_names]
     log_files = [path for path in backend_logs_dir.glob("app-*.log") if path.name not in existing_log_names]
 
+    assert root_log_files == []
     assert len(log_files) == 1
 
 

@@ -544,6 +544,7 @@ describe("App", () => {
         id: "log-1",
         timestamp: "2026-06-16T00:00:00Z",
         level: "warning",
+        source: "backend",
         event: "job_rejected",
         project_id: "project-1",
         job_id: null,
