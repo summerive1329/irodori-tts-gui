@@ -7,9 +7,10 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from app.api.projects import create_projects_router
-from app.services.app_log_service import AppLogService
+from app.services.app_log_service import AppLogService, LogContextValue, LogLevel
 from app.services.export_service import ExportService
 from app.services.generation_service import GenerationService
 from app.services.job_registry import JobRegistry
@@ -22,6 +23,20 @@ from app.services.runtime_manager import RuntimeManager
 DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "project_data"
 
 
+class FrontendLogIngestEntry(BaseModel):
+    timestamp: datetime
+    level: LogLevel
+    event: str
+    project_id: str | None = None
+    job_id: str | None = None
+    message: str
+    context: dict[str, LogContextValue] = Field(default_factory=dict)
+
+
+class FrontendLogIngestRequest(BaseModel):
+    entries: list[FrontendLogIngestEntry]
+
+
 def create_app(data_dir: Path | None = None, runtime_manager: object | None = None) -> FastAPI:
     resolved_data_dir = Path(data_dir or os.environ.get("IRODORI_GUI_DATA_DIR", DEFAULT_DATA_DIR))
     resolved_data_dir.mkdir(parents=True, exist_ok=True)
@@ -31,6 +46,8 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
     logs_dir.mkdir(parents=True, exist_ok=True)
     session_log_path = logs_dir / "backend" / f"app-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
     log_service = AppLogService(log_path=session_log_path, source="backend")
+    frontend_log_path = logs_dir / "frontend" / f"app-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.log"
+    frontend_log_service = AppLogService(log_path=frontend_log_path, source="frontend")
 
     app = FastAPI(title="Irodori Studio", version="0.1.0")
     app.add_middleware(
@@ -57,9 +74,31 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.post("/api/frontend-logs", status_code=202)
+    def ingest_frontend_logs(payload: FrontendLogIngestRequest) -> dict[str, int]:
+        for item in payload.entries:
+            frontend_log_service.log(
+                item.level,
+                item.event,
+                project_id=item.project_id,
+                job_id=item.job_id,
+                message=item.message,
+                context=item.context,
+                timestamp=item.timestamp,
+                source="frontend",
+            )
+        return {"accepted": len(payload.entries)}
+
     @app.get("/api/logs")
     def list_logs(project_id: str | None = None) -> list[dict]:
-        return [entry.model_dump(mode="json") for entry in log_service.list_entries(project_id=project_id)]
+        entries = (
+            log_service.list_entries(project_id=project_id)
+            + frontend_log_service.list_entries(project_id=project_id)
+        )
+        return [
+            entry.model_dump(mode="json")
+            for entry in sorted(entries, key=lambda entry: entry.timestamp, reverse=True)
+        ]
 
     return app
 

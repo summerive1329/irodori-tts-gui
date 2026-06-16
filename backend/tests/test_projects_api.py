@@ -724,6 +724,61 @@ def test_backend_logs_are_written_under_backend_directory(tmp_path: Path) -> Non
     assert len(log_files) == 1
 
 
+def test_frontend_logs_are_accepted_and_tagged(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+
+    response = client.post(
+        "/api/frontend-logs",
+        json={
+            "entries": [
+                {
+                    "timestamp": "2026-06-16T00:00:00Z",
+                    "level": "error",
+                    "event": "api_request_failed",
+                    "project_id": project_id,
+                    "job_id": None,
+                    "message": "Failed to load project logs",
+                    "context": {"session_id": "session-1", "request_path": "/api/logs"},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 202
+    logs = client.get(f"/api/logs?project_id={project_id}").json()
+    assert any(
+        entry["source"] == "frontend" and entry["event"] == "api_request_failed"
+        for entry in logs
+    )
+
+
+def test_frontend_logs_are_written_under_frontend_directory(tmp_path: Path) -> None:
+    frontend_logs_dir = tmp_path.parent / "logs" / "frontend"
+    existing_log_names = {path.name for path in frontend_logs_dir.glob("app-*.log")} if frontend_logs_dir.exists() else set()
+
+    client = _client(tmp_path)
+    client.post(
+        "/api/frontend-logs",
+        json={
+            "entries": [
+                {
+                    "timestamp": "2026-06-16T00:00:00Z",
+                    "level": "warning",
+                    "event": "selection_mode_entered",
+                    "project_id": None,
+                    "job_id": None,
+                    "message": "Selection mode entered",
+                    "context": {"session_id": "session-1"},
+                }
+            ]
+        },
+    )
+
+    log_files = [path for path in frontend_logs_dir.glob("app-*.log") if path.name not in existing_log_names]
+    assert len(log_files) == 1
+
+
 def test_logs_are_written_to_timestamped_file(tmp_path: Path) -> None:
     logs_dir = tmp_path.parent / "logs" / "backend"
     existing_log_names = {path.name for path in logs_dir.glob("app-*.log")} if logs_dir.exists() else set()
