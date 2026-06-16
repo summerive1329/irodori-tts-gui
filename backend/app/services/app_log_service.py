@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 
 LogLevel = Literal["info", "warning", "error"]
+LogSource = Literal["backend", "frontend"]
 LogContextValue = str | int | float | bool | None
 
 
@@ -22,6 +23,7 @@ class AppLogEntry(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     timestamp: datetime = Field(default_factory=_now)
     level: LogLevel
+    source: LogSource = "backend"
     event: str
     project_id: str | None = None
     job_id: str | None = None
@@ -30,10 +32,16 @@ class AppLogEntry(BaseModel):
 
 
 class AppLogService:
-    def __init__(self, max_entries: int = 500, log_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        max_entries: int = 500,
+        log_path: Path | None = None,
+        source: LogSource = "backend",
+    ) -> None:
         self._entries: deque[AppLogEntry] = deque(maxlen=max_entries)
         self._lock = RLock()
         self._log_path = Path(log_path) if log_path is not None else None
+        self._source = source
         if self._log_path is not None:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
             self._log_path.touch(exist_ok=True)
@@ -50,6 +58,7 @@ class AppLogService:
     ) -> AppLogEntry:
         entry = AppLogEntry(
             level=level,
+            source=self._source,
             event=event,
             project_id=project_id,
             job_id=job_id,

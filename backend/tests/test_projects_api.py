@@ -685,8 +685,43 @@ def test_logs_endpoint_includes_job_rejection_and_completion(tmp_path: Path) -> 
     assert "job_completed" in events
 
 
+def test_backend_logs_are_tagged_with_backend_source(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    )
+    assert started.status_code == 202
+    _wait_for_job(client, project_id, started.json()["id"])
+
+    logs = client.get(f"/api/logs?project_id={project_id}")
+
+    assert logs.status_code == 200
+    assert logs.json()
+    assert all(entry["source"] == "backend" for entry in logs.json())
+
+
+def test_backend_logs_are_written_under_backend_directory(tmp_path: Path) -> None:
+    backend_logs_dir = tmp_path.parent / "logs" / "backend"
+    existing_log_names = {path.name for path in backend_logs_dir.glob("app-*.log")} if backend_logs_dir.exists() else set()
+
+    client = _client(tmp_path)
+    client.post("/api/projects", json={"name": "demo"})
+
+    log_files = [path for path in backend_logs_dir.glob("app-*.log") if path.name not in existing_log_names]
+
+    assert len(log_files) == 1
+
+
 def test_logs_are_written_to_timestamped_file(tmp_path: Path) -> None:
-    logs_dir = tmp_path.parent / "logs"
+    logs_dir = tmp_path.parent / "logs" / "backend"
     existing_log_names = {path.name for path in logs_dir.glob("app-*.log")} if logs_dir.exists() else set()
 
     client = _client(tmp_path, FakeRuntimeManager())

@@ -74,6 +74,7 @@ export type AppLogEntry = {
   id: string;
   timestamp: string;
   level: "info" | "warning" | "error";
+  source: "backend" | "frontend";
   event: string;
   project_id: string | null;
   job_id: string | null;
