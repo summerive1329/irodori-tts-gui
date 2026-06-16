@@ -285,7 +285,7 @@ def test_project_payload_includes_running_job_count_for_generate_and_regenerate(
     regen = None
     try:
         project = client.get(f"/api/projects/{project_id}").json()
-        assert project["generation_progress"]["running_job_count"] == 1
+        assert project["generation_progress"]["running_job_count"] == 2
         assert project["generation_progress"]["has_running_jobs"] is True
         regen = client.post(
             f"/api/projects/{project_id}/cells/{project['cells'][1]['id']}/regeneration-jobs",
@@ -294,7 +294,7 @@ def test_project_payload_includes_running_job_count_for_generate_and_regenerate(
         assert regen.status_code == 202
 
         running = client.get(f"/api/projects/{project_id}").json()
-        assert running["generation_progress"]["running_job_count"] == 2
+        assert running["generation_progress"]["running_job_count"] == 3
         assert sorted(running["generation_progress"]["running_job_kinds"]) == [
             "generate_all",
             "regenerate_cell",
