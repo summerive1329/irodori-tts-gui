@@ -111,6 +111,12 @@ export function deleteReference(projectId: string, referenceId: string): Promise
   return request(`/api/projects/${projectId}/references/${referenceId}`, { method: "DELETE" });
 }
 
+export function clearReferenceColumn(projectId: string, referenceId: string): Promise<Project> {
+  return request(`/api/projects/${projectId}/references/${referenceId}/cells`, {
+    method: "DELETE",
+  });
+}
+
 export function startGenerationJob(projectId: string, onlyMissing: boolean): Promise<GenerationJob> {
   return request(`/api/projects/${projectId}/generate/jobs`, json("POST", { only_missing: onlyMissing }));
 }

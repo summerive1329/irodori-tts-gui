@@ -269,6 +269,47 @@ def test_bulk_regeneration_job_reprocesses_selected_cells(tmp_path: Path) -> Non
     assert [cell["current_result"]["seed"] for cell in refreshed["cells"]] == [55, 55]
 
 
+def test_clear_reference_column_resets_only_target_cells(tmp_path: Path) -> None:
+    client = _client(tmp_path, FakeRuntimeManager())
+    project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one", "two"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    project = client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "lize"},
+        files={"file": ("lize.wav", _wav_bytes(tmp_path), "audio/wav")},
+    ).json()
+
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    ).json()
+    _wait_for_job(client, project_id, started["id"])
+
+    target_reference_id = next(
+        reference["id"] for reference in project["references"] if reference["label"] == "toru"
+    )
+    cleared = client.delete(f"/api/projects/{project_id}/references/{target_reference_id}/cells")
+
+    assert cleared.status_code == 200
+    payload = cleared.json()
+    target_cells = [
+        cell for cell in payload["cells"] if cell["reference_id"] == target_reference_id
+    ]
+    other_cells = [
+        cell for cell in payload["cells"] if cell["reference_id"] != target_reference_id
+    ]
+
+    assert all(cell["current_result"] is None for cell in target_cells)
+    assert all(cell["display_status"] == "not_generated" for cell in target_cells)
+    assert all(cell["current_result"] is not None for cell in other_cells)
+    assert len(payload["references"]) == 2
+
+
 def test_regeneration_job_can_start_while_a_generation_job_is_running(tmp_path: Path) -> None:
     runtime_manager = BlockingRuntimeManager()
     client = _client(tmp_path, runtime_manager)

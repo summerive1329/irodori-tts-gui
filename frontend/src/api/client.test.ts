@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ApiError,
+  clearReferenceColumn,
   clearLines,
   clearPlaylist,
   getProjectLogs,
@@ -76,6 +77,22 @@ describe("API client", () => {
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/projects/project-1/lines");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("calls the clear reference column endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "project-1", references: [], cells: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await clearReferenceColumn("project-1", "ref-1");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/projects/project-1/references/ref-1/cells");
     expect(init.method).toBe("DELETE");
   });
 

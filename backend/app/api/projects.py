@@ -399,6 +399,36 @@ def create_projects_router(
 
         return mutate_project(project_id, apply_change)
 
+    @router.delete(
+        "/{project_id}/references/{reference_id}/cells",
+        response_model=ProjectWithGenerationProgress,
+    )
+    def clear_reference_column(
+        project_id: str,
+        reference_id: str,
+    ) -> ProjectWithGenerationProgress:
+        def apply_change(project: Project) -> None:
+            if not any(reference.id == reference_id for reference in project.references):
+                raise HTTPException(status_code=404, detail=f"Reference not found: {reference_id}")
+
+            target_cell_ids = {
+                cell.id for cell in project.cells if cell.reference_id == reference_id
+            }
+            remove_cell_audio(project, target_cell_ids)
+            for cell in project.cells:
+                if cell.reference_id != reference_id:
+                    continue
+                cell.status = "idle"
+                cell.error_message = None
+                cell.current_result = None
+                cell.playback_state = "unplayed"
+            project.export_playlist = [
+                item for item in project.export_playlist if item.cell_id not in target_cell_ids
+            ]
+            project.touch()
+
+        return mutate_project(project_id, apply_change)
+
     @router.post(
         "/{project_id}/generate/jobs",
         response_model=JobSnapshot,
