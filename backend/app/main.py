@@ -77,15 +77,14 @@ def create_app(data_dir: Path | None = None, runtime_manager: object | None = No
     @app.post("/api/frontend-logs", status_code=202)
     def ingest_frontend_logs(payload: FrontendLogIngestRequest) -> dict[str, int]:
         for item in payload.entries:
-            context = dict(item.context)
-            context["client_timestamp"] = item.timestamp.isoformat()
             frontend_log_service.log(
                 item.level,
                 item.event,
                 project_id=item.project_id,
                 job_id=item.job_id,
                 message=item.message,
-                context=context,
+                context=item.context,
+                timestamp=item.timestamp,
             )
         return {"accepted": len(payload.entries)}
 

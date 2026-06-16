@@ -760,10 +760,15 @@ def test_frontend_logs_are_accepted_and_tagged(tmp_path: Path) -> None:
     assert response.status_code == 202
     assert response.json() == {"accepted": 1}
     logs = client.get(f"/api/logs?project_id={project_id}").json()
-    assert logs[0]["source"] == "frontend"
-    assert logs[0]["event"] == "api_request_failed"
-    assert logs[0]["message"] == "Failed to load project logs"
-    assert logs[0]["context"]["request_path"] == "/api/logs"
+    frontend_log = next(
+        entry
+        for entry in logs
+        if entry["source"] == "frontend" and entry["event"] == "api_request_failed"
+    )
+    assert frontend_log["timestamp"] == "2000-01-01T00:00:00Z"
+    assert frontend_log["message"] == "Failed to load project logs"
+    assert frontend_log["context"]["request_path"] == "/api/logs"
+    assert logs[0]["source"] == "backend"
 
 
 def test_frontend_logs_are_written_under_frontend_directory(tmp_path: Path) -> None:
