@@ -51,17 +51,14 @@ class AppLogService:
         level: LogLevel,
         event: str,
         *,
-        timestamp: datetime | None = None,
         project_id: str | None = None,
         job_id: str | None = None,
         message: str,
         context: dict[str, LogContextValue] | None = None,
-        source: LogSource | None = None,
     ) -> AppLogEntry:
         entry = AppLogEntry(
-            timestamp=timestamp or _now(),
             level=level,
-            source=source or self._source,
+            source=self._source,
             event=event,
             project_id=project_id,
             job_id=job_id,

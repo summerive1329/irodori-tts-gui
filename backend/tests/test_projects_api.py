@@ -725,15 +725,27 @@ def test_backend_logs_are_written_under_backend_directory(tmp_path: Path) -> Non
 
 
 def test_frontend_logs_are_accepted_and_tagged(tmp_path: Path) -> None:
-    client = _client(tmp_path)
+    client = _client(tmp_path, FakeRuntimeManager())
     project_id = client.post("/api/projects", json={"name": "demo"}).json()["id"]
+    client.post(f"/api/projects/{project_id}/lines", json={"texts": ["one"]})
+    client.post(
+        f"/api/projects/{project_id}/references",
+        data={"label": "toru"},
+        files={"file": ("toru.wav", _wav_bytes(tmp_path), "audio/wav")},
+    )
+    started = client.post(
+        f"/api/projects/{project_id}/generate/jobs",
+        json={"only_missing": True},
+    )
+    assert started.status_code == 202
+    _wait_for_job(client, project_id, started.json()["id"])
 
     response = client.post(
         "/api/frontend-logs",
         json={
             "entries": [
                 {
-                    "timestamp": "2026-06-16T00:00:00Z",
+                    "timestamp": "2000-01-01T00:00:00Z",
                     "level": "error",
                     "event": "api_request_failed",
                     "project_id": project_id,
@@ -746,11 +758,12 @@ def test_frontend_logs_are_accepted_and_tagged(tmp_path: Path) -> None:
     )
 
     assert response.status_code == 202
+    assert response.json() == {"accepted": 1}
     logs = client.get(f"/api/logs?project_id={project_id}").json()
-    assert any(
-        entry["source"] == "frontend" and entry["event"] == "api_request_failed"
-        for entry in logs
-    )
+    assert logs[0]["source"] == "frontend"
+    assert logs[0]["event"] == "api_request_failed"
+    assert logs[0]["message"] == "Failed to load project logs"
+    assert logs[0]["context"]["request_path"] == "/api/logs"
 
 
 def test_frontend_logs_are_written_under_frontend_directory(tmp_path: Path) -> None:
@@ -758,7 +771,7 @@ def test_frontend_logs_are_written_under_frontend_directory(tmp_path: Path) -> N
     existing_log_names = {path.name for path in frontend_logs_dir.glob("app-*.log")} if frontend_logs_dir.exists() else set()
 
     client = _client(tmp_path)
-    client.post(
+    response = client.post(
         "/api/frontend-logs",
         json={
             "entries": [
@@ -775,8 +788,12 @@ def test_frontend_logs_are_written_under_frontend_directory(tmp_path: Path) -> N
         },
     )
 
+    assert response.status_code == 202
     log_files = [path for path in frontend_logs_dir.glob("app-*.log") if path.name not in existing_log_names]
     assert len(log_files) == 1
+    content = log_files[0].read_text(encoding="utf-8")
+    assert "selection_mode_entered" in content
+    assert "Selection mode entered" in content
 
 
 def test_logs_are_written_to_timestamped_file(tmp_path: Path) -> None:
