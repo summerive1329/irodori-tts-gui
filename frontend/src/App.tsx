@@ -466,6 +466,7 @@ export function App() {
         onMarkCellPlayed={(cellId) => void runProjectAction(() => api.markCellPlayed(project.id, cellId))}
         onAppendToPlaylist={(cellId) => void runProjectAction(() => api.appendPlaylistItem(project.id, cellId))}
         onAppendReferenceColumn={(referenceId) => void runProjectAction(() => api.appendReferenceColumn(project.id, referenceId))}
+        onClearReferenceColumn={(referenceId) => void runProjectAction(() => api.clearReferenceColumn(project.id, referenceId))}
         onRemovePlaylistItem={(playlistItemId) => void runProjectAction(() => api.removePlaylistItem(project.id, playlistItemId))}
         onReorderPlaylist={(playlistItemIds) => void runProjectAction(() => api.reorderPlaylist(project.id, playlistItemIds))}
         onClearPlaylist={() => void runProjectAction(() => api.clearPlaylist(project.id))}

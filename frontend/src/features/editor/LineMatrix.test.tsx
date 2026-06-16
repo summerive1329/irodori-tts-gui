@@ -43,6 +43,7 @@ function matrixProps() {
     onMarkCellPlayed: vi.fn(),
     onAppendToPlaylist: vi.fn(),
     onAppendReferenceColumn: vi.fn(),
+    onClearReferenceColumn: vi.fn(),
     onEditLine: vi.fn(),
     onInsertLine: vi.fn(),
     onReorder: vi.fn(),
@@ -122,6 +123,38 @@ describe("LineMatrix", () => {
     await user.click(screen.getByRole("button", { name: "toruを上から追加" }));
 
     expect(props.onAppendReferenceColumn).toHaveBeenCalledWith("ref-1");
+  });
+
+  it("clears a whole reference column from the header", async () => {
+    const user = userEvent.setup();
+    const props = matrixProps();
+    render(<LineMatrix {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "toru列を消去" }));
+
+    expect(props.onClearReferenceColumn).toHaveBeenCalledWith("ref-1");
+  });
+
+  it("moves a line to the requested 1-based position with ctrl+enter", async () => {
+    const user = userEvent.setup();
+    const props = matrixProps();
+    props.lines = [
+      { id: "line-1", text: "one", order_index: 0 },
+      { id: "line-2", text: "two", order_index: 1 },
+      { id: "line-3", text: "three", order_index: 2 },
+    ];
+    props.references = [];
+    props.cells = [];
+    render(<LineMatrix {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "移動: one" }));
+    const input = screen.getByLabelText("移動先番号");
+    await user.clear(input);
+    await user.type(input, "3");
+    fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+    expect(props.onReorder).toHaveBeenCalledWith(["line-2", "line-3", "line-1"]);
+    expect(screen.queryByLabelText("移動先番号")).not.toBeInTheDocument();
   });
 
   it("keeps an older take playable while the cell is generating", () => {

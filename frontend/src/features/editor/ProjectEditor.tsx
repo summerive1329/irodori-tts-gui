@@ -55,6 +55,7 @@ type Props = {
   onMarkCellPlayed?: (cellId: string) => void;
   onAppendToPlaylist: (cellId: string) => void;
   onAppendReferenceColumn: (referenceId: string) => void;
+  onClearReferenceColumn: (referenceId: string) => void;
   onRemovePlaylistItem: (playlistItemId: string) => void;
   onReorderPlaylist: (playlistItemIds: string[]) => void;
   onClearPlaylist: () => void;
@@ -93,6 +94,7 @@ export function ProjectEditor({
   onMarkCellPlayed,
   onAppendToPlaylist,
   onAppendReferenceColumn,
+  onClearReferenceColumn,
   onRemovePlaylistItem,
   onReorderPlaylist,
   onClearPlaylist,
@@ -233,6 +235,12 @@ export function ProjectEditor({
             onMarkCellPlayed={onMarkCellPlayed}
             onAppendToPlaylist={onAppendToPlaylist}
             onAppendReferenceColumn={onAppendReferenceColumn}
+            onClearReferenceColumn={(referenceId) => {
+              const reference = project.references.find((item) => item.id === referenceId);
+              if (!reference) return;
+              if (!window.confirm(`参照音声「${reference.label}」列の生成結果を消去しますか？`)) return;
+              onClearReferenceColumn(referenceId);
+            }}
             onEditLine={onEditLine}
             onInsertLine={onInsertLine}
             onDeleteLine={(lineId) => {

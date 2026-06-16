@@ -21,6 +21,7 @@ type Props = {
   onMarkCellPlayed?: (cellId: string) => void;
   onAppendToPlaylist: (cellId: string) => void;
   onAppendReferenceColumn: (referenceId: string) => void;
+  onClearReferenceColumn?: (referenceId: string) => void;
   onEditLine: (lineId: string, text: string) => void;
   onInsertLine: (index: number, text: string) => void;
   onDeleteLine?: (lineId: string) => void;
@@ -56,6 +57,7 @@ export function LineMatrix({
   onMarkCellPlayed,
   onAppendToPlaylist,
   onAppendReferenceColumn,
+  onClearReferenceColumn,
   onEditLine,
   onInsertLine,
   onDeleteLine,
@@ -64,6 +66,9 @@ export function LineMatrix({
 }: Props) {
   const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
   const [insertionText, setInsertionText] = useState("");
+  const [moveLineId, setMoveLineId] = useState<string | null>(null);
+  const [moveTargetValue, setMoveTargetValue] = useState("");
+  const [movedLineId, setMovedLineId] = useState<string | null>(null);
   const [draggedLineId, setDraggedLineId] = useState<string | null>(null);
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null);
   const [resizing, setResizing] = useState(false);
@@ -95,6 +100,12 @@ export function LineMatrix({
     };
   }, [onResizeDialogueColumn, resizing]);
 
+  useEffect(() => {
+    if (!movedLineId) return;
+    const timeoutId = window.setTimeout(() => setMovedLineId(null), 1500);
+    return () => window.clearTimeout(timeoutId);
+  }, [movedLineId]);
+
   function playNextInReference(cell: CellItem) {
     if (!autoPlay) return;
     const lineOrder = new Map(orderedLines.map((line, index) => [line.id, index]));
@@ -115,6 +126,34 @@ export function LineMatrix({
     setDraggedLineId(null);
     setDragTargetIndex(null);
     if (reordered.some((id, itemIndex) => id !== ids[itemIndex])) onReorder(reordered);
+  }
+
+  function closeMovePanel() {
+    setMoveLineId(null);
+    setMoveTargetValue("");
+  }
+
+  function moveLineToPosition(lineId: string, targetPosition: number) {
+    if (!Number.isInteger(targetPosition) || targetPosition < 1 || targetPosition > orderedLines.length) {
+      return;
+    }
+    const ids = orderedLines.map((line) => line.id);
+    const reordered = ids.filter((id) => id !== lineId);
+    reordered.splice(targetPosition - 1, 0, lineId);
+    closeMovePanel();
+    if (reordered.some((id, itemIndex) => id !== ids[itemIndex])) onReorder(reordered);
+    setMovedLineId(lineId);
+  }
+
+  function updateMoveTargetValue(nextValue: string) {
+    if (!nextValue) {
+      setMoveTargetValue("");
+      return;
+    }
+    if (!/^\d+$/.test(nextValue)) return;
+    const nextNumber = Number(nextValue);
+    if (nextNumber < 1 || nextNumber > orderedLines.length) return;
+    setMoveTargetValue(nextValue);
   }
 
   function insertionSlot(index: number, label: string) {
@@ -202,6 +241,17 @@ export function LineMatrix({
           <div className="matrix-reference-header" data-testid="matrix-header-cell" key={reference.id}>
             <strong>{reference.label}</strong>
             <small>{reference.source_filename}</small>
+            {onClearReferenceColumn ? (
+              <button
+                type="button"
+                className="column-clear-button"
+                disabled={busy}
+                aria-label={`${reference.label}列を消去`}
+                onClick={() => onClearReferenceColumn(reference.id)}
+              >
+                この列を消去
+              </button>
+            ) : null}
             <button
               type="button"
               className="column-add-button"
@@ -219,7 +269,7 @@ export function LineMatrix({
         {orderedLines.map((line, lineIndex) => (
           <Fragment key={line.id}>
             <div className="matrix-row">
-              <div className="line-editor">
+              <div className={`line-editor${movedLineId === line.id ? " is-moved" : ""}`}>
                 <span className="line-number">{String(lineIndex + 1).padStart(2, "0")}</span>
                 <textarea
                   defaultValue={line.text}
@@ -248,8 +298,51 @@ export function LineMatrix({
                   >
                     ≡
                   </button>
+                  <button
+                    type="button"
+                    className="line-move-button"
+                    disabled={busy}
+                    aria-label={`移動: ${line.text}`}
+                    onClick={() => {
+                      setMoveLineId(line.id);
+                      setMoveTargetValue(String(lineIndex + 1));
+                    }}
+                  >
+                    移動
+                  </button>
                   {onDeleteLine && <button type="button" disabled={busy} aria-label={`削除: ${line.text}`} onClick={() => onDeleteLine(line.id)}>×</button>}
                 </div>
+                {moveLineId === line.id ? (
+                  <div className="line-move-panel">
+                    <label>
+                      移動先番号
+                      <input
+                        autoFocus
+                        aria-label="移動先番号"
+                        type="number"
+                        min={1}
+                        max={orderedLines.length}
+                        inputMode="numeric"
+                        value={moveTargetValue}
+                        onChange={(event) => updateMoveTargetValue(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            closeMovePanel();
+                            return;
+                          }
+                          if (event.key === "Enter" && event.ctrlKey) {
+                            event.preventDefault();
+                            moveLineToPosition(line.id, Number(moveTargetValue));
+                          }
+                        }}
+                      />
+                    </label>
+                    <button type="button" className="button button-quiet" onClick={() => closeMovePanel()}>
+                      閉じる
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="line-cells">

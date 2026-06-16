@@ -254,17 +254,51 @@ body::before {
 .matrix-reference-header { padding: 12px 16px; border-left: 1px solid var(--line); }
 .matrix-reference-header small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .matrix-reference-header.is-empty { justify-content: center; }
+.column-clear-button,
 .column-add-button { align-self: flex-start; margin-top: 8px; border: 0; border-bottom: 1px solid var(--green); padding: 2px 0; background: transparent; color: var(--green); cursor: pointer; font-size: 10px; font-weight: 800; }
+.column-clear-button { color: var(--danger); border-bottom-color: rgba(159, 61, 49, 0.45); }
+.column-clear-button:disabled,
+.column-add-button:disabled { opacity: 0.35; cursor: not-allowed; }
 .matrix-row,
 .line-cells { display: contents; }
 .line-editor { position: sticky; left: 0; z-index: 3; display: grid; grid-template-columns: 35px 1fr auto; gap: 10px; min-height: 150px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 14px; background: var(--paper); }
+.line-editor.is-moved {
+  background:
+    linear-gradient(135deg, rgba(49, 90, 74, 0.14), rgba(49, 90, 74, 0.02)),
+    var(--paper);
+  box-shadow: inset 0 0 0 2px rgba(49, 90, 74, 0.35);
+}
 .line-number { color: var(--orange); font: 600 20px/1 "Iowan Old Style", serif; }
 .line-editor textarea { width: 100%; border: 0; resize: none; background: transparent; color: var(--ink); font: 500 16px/1.6 "Yu Mincho", "Iowan Old Style", serif; outline: none; }
 .line-order-controls { display: flex; flex-direction: column; gap: 4px; }
-.line-order-controls button { width: 27px; height: 27px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.line-order-controls button { min-width: 27px; height: 27px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
 .line-order-controls button:disabled { opacity: 0.2; }
 .drag-handle { cursor: grab !important; font-size: 19px; line-height: 1; }
 .drag-handle:active { cursor: grabbing !important; }
+.line-move-button { padding: 0 8px; font-size: 11px; font-weight: 800; }
+.line-move-panel {
+  grid-column: 2 / 4;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  margin-top: 2px;
+}
+.line-move-panel label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+.line-move-panel input {
+  width: 92px;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  padding: 6px 4px;
+  background: transparent;
+  outline: none;
+}
+.line-move-panel .button { padding: 6px 12px; }
 .line-insert-slot { position: relative; display: flex; align-items: center; justify-content: center; min-height: 30px; border-bottom: 1px solid var(--line); background: rgba(49, 90, 74, 0.04); }
 .line-insert-slot.is-drag-target { min-height: 38px; background: var(--green-soft); }
 .line-insert-button { border: 0; padding: 3px 10px; background: transparent; color: var(--green); cursor: pointer; font-size: 10px; font-weight: 800; opacity: 0.55; }
