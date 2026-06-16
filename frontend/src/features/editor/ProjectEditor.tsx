@@ -29,6 +29,7 @@ type Props = {
   project: Project;
   busy: boolean;
   job: GenerationJob | null;
+  selectionMode: boolean;
   selectedCellId: string | null;
   selectedCellIds: string[];
   projectLogs: AppLogEntry[];
@@ -37,6 +38,8 @@ type Props = {
   onDeleteProject: () => void;
   onSelectCell: (cellId: string) => void;
   onToggleCellSelection: (cellId: string) => void;
+  onEnterSelectionMode: () => void;
+  onCancelSelectionMode: () => void;
   onImportFiles: (files: File[]) => void;
   onAppendLines: (texts: string[]) => void;
   onAddReference: (label: string, file: File) => void;
@@ -64,6 +67,7 @@ export function ProjectEditor({
   project,
   busy,
   job,
+  selectionMode,
   selectedCellId,
   selectedCellIds,
   projectLogs,
@@ -72,6 +76,8 @@ export function ProjectEditor({
   onDeleteProject,
   onSelectCell,
   onToggleCellSelection,
+  onEnterSelectionMode,
+  onCancelSelectionMode,
   onImportFiles,
   onAppendLines,
   onAddReference,
@@ -198,9 +204,12 @@ export function ProjectEditor({
             busy={busy}
             canGenerate={canGenerate}
             autoPlay={autoPlay}
+            selectionMode={selectionMode}
             selectedRegeneratableCount={selectedRegeneratableCellIds.length}
             onGenerateMissing={() => onGenerate(true)}
             onGenerateAll={() => onGenerate(false)}
+            onEnterSelectionMode={onEnterSelectionMode}
+            onCancelSelectionMode={onCancelSelectionMode}
             onRegenerateSelected={() => onRegenerateSelected(selectedRegeneratableCellIds, null)}
             onToggleAutoPlay={setAutoPlay}
           />
@@ -213,6 +222,7 @@ export function ProjectEditor({
             busy={busy}
             dialogueColumnWidth={width}
             autoPlay={autoPlay}
+            selectionMode={selectionMode}
             hiddenLineIds={hiddenLineIds}
             selectedCellId={selectedCellId}
             selectedCellIds={selectedCellIds}

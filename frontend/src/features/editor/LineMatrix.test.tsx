@@ -34,6 +34,7 @@ function matrixProps() {
     cells,
     busy: false,
     autoPlay: false,
+    selectionMode: false,
     selectedCellId: null,
     selectedCellIds: [],
     onSelectCell: vi.fn(),
@@ -69,15 +70,28 @@ describe("LineMatrix", () => {
     expect(props.onRegenerate).toHaveBeenCalledWith("cell-1");
   });
 
-  it("toggles cell selection without changing the focused cell callback", async () => {
+  it("uses cell clicks to toggle selection while selection mode is active", async () => {
     const user = userEvent.setup();
     const props = matrixProps();
+    props.selectionMode = true;
     render(<LineMatrix {...props} />);
 
-    await user.click(screen.getByRole("checkbox", { name: "セル選択: toru / hello" }));
+    await user.click(screen.getAllByText("未再生")[0]);
 
     expect(props.onToggleCellSelection).toHaveBeenCalledWith("cell-1");
     expect(props.onSelectCell).not.toHaveBeenCalled();
+  });
+
+  it("keeps buttons usable during selection mode without toggling selection", async () => {
+    const user = userEvent.setup();
+    const props = matrixProps();
+    props.selectionMode = true;
+    render(<LineMatrix {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "リストに追加: lize / hello" }));
+
+    expect(props.onAppendToPlaylist).toHaveBeenCalledWith("cell-2");
+    expect(props.onToggleCellSelection).not.toHaveBeenCalled();
   });
 
   it("adds one exact cell to the export playlist", async () => {

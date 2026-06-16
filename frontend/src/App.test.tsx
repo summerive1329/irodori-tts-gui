@@ -522,8 +522,9 @@ describe("App", () => {
 
     render(<AppRouter />);
 
-    await user.click(await screen.findByRole("checkbox", { name: "セル選択: toru / hello" }));
-    await user.click(screen.getByRole("checkbox", { name: "セル選択: lize / hello" }));
+    await user.click(await screen.findByRole("button", { name: "複数選択で再生成" }));
+    await user.click(screen.getAllByText("未再生")[0]);
+    await user.click(screen.getAllByText("未再生")[1]);
     await user.click(screen.getByRole("button", { name: "選択セルを再生成 (2)" }));
 
     await waitFor(() =>

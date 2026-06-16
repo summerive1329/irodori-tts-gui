@@ -6,9 +6,12 @@ type Props = {
   busy: boolean;
   canGenerate: boolean;
   autoPlay: boolean;
+  selectionMode: boolean;
   selectedRegeneratableCount: number;
   onGenerateMissing: () => void;
   onGenerateAll: () => void;
+  onEnterSelectionMode: () => void;
+  onCancelSelectionMode: () => void;
   onRegenerateSelected: () => void;
   onToggleAutoPlay: (enabled: boolean) => void;
 };
@@ -19,9 +22,12 @@ export function GenerationConsole({
   busy,
   canGenerate,
   autoPlay,
+  selectionMode,
   selectedRegeneratableCount,
   onGenerateMissing,
   onGenerateAll,
+  onEnterSelectionMode,
+  onCancelSelectionMode,
   onRegenerateSelected,
   onToggleAutoPlay,
 }: Props) {
@@ -39,7 +45,15 @@ export function GenerationConsole({
       <div className="generation-console-actions">
         <button type="button" className="button button-primary" disabled={busy || !canGenerate} onClick={onGenerateMissing}>未生成を実行</button>
         <button type="button" className="button button-accent" disabled={busy || !canGenerate} onClick={onGenerateAll}>全セルを実行</button>
-        <button type="button" className="button button-quiet" disabled={selectedRegeneratableCount === 0} onClick={onRegenerateSelected}>選択セルを再生成 ({selectedRegeneratableCount})</button>
+        {selectionMode ? (
+          <>
+            <button type="button" className="button button-quiet" disabled={selectedRegeneratableCount === 0} onClick={onRegenerateSelected}>選択セルを再生成 ({selectedRegeneratableCount})</button>
+            <button type="button" className="button button-quiet" onClick={onCancelSelectionMode}>キャンセル</button>
+            <span>セルをクリックして選択</span>
+          </>
+        ) : (
+          <button type="button" className="button button-quiet" disabled={busy} onClick={onEnterSelectionMode}>複数選択で再生成</button>
+        )}
       </div>
       <div className={`generation-progress${generationProgress.has_running_jobs ? " is-running" : ""}`}>
         <span className="status-dot" />

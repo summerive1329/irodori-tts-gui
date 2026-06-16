@@ -11,6 +11,7 @@ type Props = {
   allowRegenerateWhileBusy?: boolean;
   dialogueColumnWidth?: number;
   autoPlay: boolean;
+  selectionMode: boolean;
   hiddenLineIds?: Set<string>;
   selectedCellId: string | null;
   selectedCellIds: string[];
@@ -45,6 +46,7 @@ export function LineMatrix({
   allowRegenerateWhileBusy = false,
   dialogueColumnWidth = 440,
   autoPlay,
+  selectionMode,
   hiddenLineIds = new Set<string>(),
   selectedCellId,
   selectedCellIds,
@@ -265,17 +267,13 @@ export function LineMatrix({
                     <article
                       className={`result-cell status-${cell.display_status}${selectedCellId === cell.id ? " is-focused" : ""}${isSelected ? " is-selected" : ""}${isPlayed ? " is-played" : ""}${isUnplayed ? " is-unplayed" : ""}`}
                       key={cell.id}
-                      onClick={() => onSelectCell(cell.id)}
+                      onClick={() => {
+                        if (selectionMode) onToggleCellSelection(cell.id);
+                        else onSelectCell(cell.id);
+                      }}
                     >
                       <div className="cell-topline">
                         <span className="status-dot" />
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          aria-label={`セル選択: ${reference.label} / ${line.text}`}
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={() => onToggleCellSelection(cell.id)}
-                        />
                         <span>{displayStatusLabel[cell.display_status]}</span>
                         <button
                           type="button"
@@ -301,6 +299,7 @@ export function LineMatrix({
                           controls
                           preload="none"
                           src={audioUrl}
+                          onClick={(event) => event.stopPropagation()}
                           onPlay={() => {
                             onMarkCellPlayed?.(cell.id);
                           }}

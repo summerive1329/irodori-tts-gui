@@ -36,6 +36,7 @@ function props(): ComponentProps<typeof ProjectEditor> {
     project,
     busy: false,
     job: null,
+    selectionMode: false,
     selectedCellId: null,
     selectedCellIds: [],
     projectLogs: [],
@@ -44,6 +45,8 @@ function props(): ComponentProps<typeof ProjectEditor> {
     onDeleteProject: vi.fn(),
     onSelectCell: vi.fn(),
     onToggleCellSelection: vi.fn(),
+    onEnterSelectionMode: vi.fn(),
+    onCancelSelectionMode: vi.fn(),
     onImportFiles: vi.fn(),
     onAppendLines: vi.fn(),
     onAddReference: vi.fn(),
@@ -127,6 +130,7 @@ describe("ProjectEditor", () => {
   it("starts bulk regeneration for the selected cells", async () => {
     const user = userEvent.setup();
     const editorProps = props();
+    editorProps.selectionMode = true;
     editorProps.selectedCellIds = ["cell-1", "cell-2"];
     editorProps.project = {
       ...project,
@@ -146,6 +150,23 @@ describe("ProjectEditor", () => {
     await user.click(screen.getByRole("button", { name: "選択セルを再生成 (2)" }));
 
     expect(editorProps.onRegenerateSelected).toHaveBeenCalledWith(["cell-1", "cell-2"], null);
+  });
+
+  it("enters selection mode before allowing bulk regeneration", async () => {
+    const user = userEvent.setup();
+    const editorProps = props();
+    editorProps.project = {
+      ...project,
+      lines: [{ id: "line-1", text: "hello", order_index: 0 }],
+      references: [{ id: "ref-1", label: "toru", source_filename: "toru.wav", copied_path: "references/toru.wav", duration_sec: 1 }],
+      cells: [{ id: "cell-1", line_id: "line-1", reference_id: "ref-1", status: "ready", display_status: "unplayed", error_message: null, current_result: null }],
+      export_playlist: [],
+    };
+    render(<ProjectEditor {...editorProps} />);
+
+    await user.click(screen.getByRole("button", { name: "複数選択で再生成" }));
+
+    expect(editorProps.onEnterSelectionMode).toHaveBeenCalledOnce();
   });
 
   it("keeps regenerate available during a running regeneration job", () => {
