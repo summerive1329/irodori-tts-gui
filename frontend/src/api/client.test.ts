@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, clearLines, clearPlaylist, getProjectLogs, importLines, listProjects } from "./client";
+import {
+  ApiError,
+  clearLines,
+  clearPlaylist,
+  getProjectLogs,
+  importLines,
+  listProjects,
+  postFrontendLogs,
+} from "./client";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -85,5 +93,34 @@ describe("API client", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/logs?project_id=project-1");
     expect(init).toBeUndefined();
+  });
+
+  it("posts frontend logs to the batch endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ accepted: 1 }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const entries = [
+      {
+        timestamp: "2026-06-16T00:00:00.000Z",
+        level: "error" as const,
+        event: "api_request_failed",
+        project_id: "project-1",
+        job_id: null,
+        message: "request failed",
+        context: { request_path: "/api/logs" },
+      },
+    ];
+
+    await postFrontendLogs(entries);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/frontend-logs");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    expect(init.body).toBe(JSON.stringify({ entries }));
   });
 });

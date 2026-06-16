@@ -1,4 +1,10 @@
-import type { AppLogEntry, GenerationJob, Project, ProjectSummary } from "../types";
+import type {
+  AppLogEntry,
+  FrontendLogPayloadEntry,
+  GenerationJob,
+  Project,
+  ProjectSummary,
+} from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -48,6 +54,12 @@ export function getProject(projectId: string): Promise<Project> {
 
 export function getProjectLogs(projectId: string): Promise<AppLogEntry[]> {
   return request(`/api/logs?project_id=${encodeURIComponent(projectId)}`);
+}
+
+export function postFrontendLogs(
+  entries: FrontendLogPayloadEntry[],
+): Promise<{ accepted: number }> {
+  return request("/api/frontend-logs", json("POST", { entries }));
 }
 
 export function updateProject(projectId: string, updates: Partial<Project>): Promise<Project> {

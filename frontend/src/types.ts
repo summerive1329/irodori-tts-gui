@@ -82,6 +82,16 @@ export type AppLogEntry = {
   context: Record<string, string | number | boolean | null>;
 };
 
+export type FrontendLogPayloadEntry = {
+  timestamp: string;
+  level: "info" | "warning" | "error";
+  event: string;
+  project_id: string | null;
+  job_id: string | null;
+  message: string;
+  context: Record<string, string | number | boolean | null>;
+};
+
 export type Project = {
   id: string;
   name: string;
